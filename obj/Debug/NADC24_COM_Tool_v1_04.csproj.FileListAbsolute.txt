@@ -1,0 +1,101 @@
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe.config
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.pdb
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Endorphin.Core.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Endorphin.Core.NationalInstruments.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\EPPlus.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\EPPlus.Interfaces.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\EPPlus.System.Drawing.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Ivi.Visa.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Microsoft.IO.RecyclableMemoryStream.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\NationalInstruments.Visa.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Endorphin.Core.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Endorphin.Core.NationalInstruments.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\EPPlus.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Ivi.Visa.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Microsoft.IO.RecyclableMemoryStream.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\NationalInstruments.Visa.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.AssemblyReference.cache
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC_COM_Tool_v1_00.Form1.resources
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\Nuvoton_PSU_Meter.Properties.Resources.resources
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.GenerateResource.cache
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.CoreCompileInputs.cache
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_C.8EF88AC4.Up2Date
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.exe
+C:\All_UI_Projects\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.pdb
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe.config
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.pdb
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Ivi.Visa.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\NationalInstruments.Visa.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\System.Buffers.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\System.Memory.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\System.Numerics.Vectors.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\System.Resources.Extensions.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\System.Runtime.CompilerServices.Unsafe.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\bin\Debug\Ivi.Visa.xml
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.AssemblyReference.cache
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC_COM_Tool_v1_00.Form1.resources
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\Nuvoton_PSU_Meter.Properties.Resources.resources
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.GenerateResource.cache
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.CoreCompileInputs.cache
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\NADC24_C.8EF88AC4.Up2Date
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.exe
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_04_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.pdb
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe.config
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.pdb
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Ivi.Visa.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\NationalInstruments.Visa.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Buffers.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Memory.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Numerics.Vectors.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Resources.Extensions.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Runtime.CompilerServices.Unsafe.dll
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Ivi.Visa.xml
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.AssemblyReference.cache
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC_COM_Tool_v1_00.Form1.resources
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\Nuvoton_PSU_Meter.Properties.Resources.resources
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.GenerateResource.cache
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.CoreCompileInputs.cache
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_C.8EF88AC4.Up2Date
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.exe
+D:\Data\Nuvoton\NADC24_M258_Power_Meter\20260602\Compensation_Method_20260820\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.pdb
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe.config
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.exe
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Nuvoton PSU Meter.pdb
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Ivi.Visa.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\NationalInstruments.Visa.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Buffers.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Memory.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Numerics.Vectors.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Resources.Extensions.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\System.Runtime.CompilerServices.Unsafe.dll
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\bin\Debug\Ivi.Visa.xml
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.AssemblyReference.cache
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC_COM_Tool_v1_00.Form1.resources
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\Nuvoton_PSU_Meter.Properties.Resources.resources
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.GenerateResource.cache
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_COM_Tool_v1_04.csproj.CoreCompileInputs.cache
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\NADC24_C.8EF88AC4.Up2Date
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.exe
+C:\Users\CKCHEN1\Desktop\Compensation_Method_20261001\NADC24_COM_Tool_v1_07_Gen_Cali_Value\obj\Debug\Nuvoton PSU Meter.pdb
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\Nuvoton PSU Meter.exe.config
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\Nuvoton PSU Meter.exe
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\Nuvoton PSU Meter.pdb
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\Ivi.Visa.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\NationalInstruments.Visa.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\System.Buffers.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\System.Memory.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\System.Numerics.Vectors.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\System.Resources.Extensions.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\System.Runtime.CompilerServices.Unsafe.dll
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\bin\Debug\Ivi.Visa.xml
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\NADC24_COM_Tool_v1_04.csproj.AssemblyReference.cache
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\NADC_COM_Tool_v1_00.Form1.resources
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\Nuvoton_PSU_Meter.Properties.Resources.resources
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\NADC24_COM_Tool_v1_04.csproj.GenerateResource.cache
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\NADC24_COM_Tool_v1_04.csproj.CoreCompileInputs.cache
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\NADC24_C.8EF88AC4.Up2Date
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\Nuvoton PSU Meter.exe
+C:\All_UI_Projects\Meter_Tool_for_ATX_Power_v1_04\obj\Debug\Nuvoton PSU Meter.pdb

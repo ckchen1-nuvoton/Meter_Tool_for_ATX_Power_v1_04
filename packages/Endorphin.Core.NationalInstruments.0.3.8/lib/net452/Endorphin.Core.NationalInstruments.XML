@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="utf-8"?>
+<doc>
+<assembly><name>Endorphin.Core.NationalInstruments</name></assembly>
+<members>
+<member name="P:Endorphin.Core.AsyncExtensions.ResultChannel`1.ResultAvailable">
+<summary>
+ Check if a result has been registered with the channel.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncExtensions.ResultChannel`1.RegisterResult(`0)">
+<summary>
+ Record the result, starting any registered continuations.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncExtensions.ResultChannel`1.AwaitResult">
+<summary>
+ Wait for a result to be registered on the channel asynchronously.
+</summary>
+</member>
+<member name="T:Endorphin.Core.AsyncExtensions.ResultChannel`1">
+<summary>
+ A single-fire result channel which can be used to await a result asynchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncModule.raise``1(``0)">
+<summary>
+ Raise a non-async result into an async workflow.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncModule.map2``3(Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpFunc{``1,``2}},Microsoft.FSharp.Control.FSharpAsync{``0},Microsoft.FSharp.Control.FSharpAsync{``1})">
+<summary>
+ Apply a mapping function which takes two async workflows and returns a new one.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncModule.map``2(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Control.FSharpAsync{``0})">
+<summary>
+ Apply a mapping function inside an async workflow.
+</summary>
+</member>
+<member name="P:Endorphin.Core.Choice.choice">
+<summary>
+ Create the choice computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.|Success|Failure|``2(Microsoft.FSharp.Core.FSharpChoice{``0,``1})">
+<summary>
+ Success or failure semantics for Choice types.  These function simply as aliases for Choice1Of2
+ and Choice2Of2.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Zero``1">
+<summary>
+ Get the zero value of the choice computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.ReturnFrom``2(Microsoft.FSharp.Core.FSharpChoice{``0,``1})">
+<summary>
+ Return a choice value from a computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Return``2(``0)">
+<summary>
+ Return a non-choice value as a choice.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Delay``2(Microsoft.FSharp.Core.FSharpFunc{Microsoft.FSharp.Core.Unit,Microsoft.FSharp.Core.FSharpChoice{``0,``1}})">
+<summary>
+ Delay performing a function inside a choice computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Combine``2(Microsoft.FSharp.Core.FSharpChoice{Microsoft.FSharp.Core.Unit,``0},Microsoft.FSharp.Core.FSharpChoice{``1,``0})">
+<summary>
+ Combine a value with the global state.  The global state must be Choice&lt;unit, _&gt; for this
+ to work.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Bind``3(Microsoft.FSharp.Core.FSharpChoice{``0,``1},Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{``2,``1}})">
+<summary>
+ Bind a new choice onto the global state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.lift``2(``0)">
+<summary>
+ Lift any value into being a choice success. Does the same thing as Choice.succeed, but without
+ the implication it was a success.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.bindOrRaise``2(Microsoft.FSharp.Core.FSharpChoice{``0,``1})">
+<summary>
+ Return the success value of a state, or raise the exception stored in the error state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.bind``3(Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{``1,``2}},Microsoft.FSharp.Core.FSharpChoice{``0,``2})">
+<summary>
+ Bind a choice-returning function onto an existing choice.  If the given state is in the success
+ state, then apply the binding to the successful value.  If the given state is in the failure state,
+ then simply propagate that failure.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.mapError``3(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Core.FSharpChoice{``2,``0})">
+<summary>
+ Map a function onto the error type of a choice state.  If the choice is in the error state, then
+ apply the mapping.  Otherwise simply return the success state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.map``3(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Core.FSharpChoice{``0,``2})">
+<summary>
+ Map a function onto a choice type.  If the choice is in the success state, then apply the mapping,
+ otherwise return the previous failure message.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.fail``2(``0)">
+<summary>
+ Return a failure state of the given value.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.succeed``2(``0)">
+<summary>
+ Return a success state of the given value.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Choice">
+<summary>
+ Functions for dealing with choices between success and failure states.
+</summary>
+</member>
+<member name="P:Endorphin.Core.Option.maybe">
+<summary>
+ Create the choice computational expression.
+</summary>
+</member>
+<member name="F:Endorphin.Core.Option.Option.Builder.zero">
+<summary>
+ The default case for the empty computation expression is a Some with no value.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.Builder.Zero">
+<summary>
+ Get the zero value of the option computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.Builder.ReturnFrom``1(``0)">
+<summary>
+ Return an option value from a computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.Builder.Return``1(``0)">
+<summary>
+ Return a non-option value as an option.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.Builder.Delay``1(Microsoft.FSharp.Core.FSharpFunc{Microsoft.FSharp.Core.Unit,``0})">
+<summary>
+ Delay performing a function inside an option computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.Builder.Combine``1(Microsoft.FSharp.Core.FSharpOption{Microsoft.FSharp.Core.Unit},Microsoft.FSharp.Core.FSharpOption{``0})">
+<summary>
+ Combine a value with the global state. The global state must be Option&lt;unit&gt; for this
+ to work.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.Builder.Bind``2(Microsoft.FSharp.Core.FSharpOption{``0},Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpOption{``1}})">
+<summary>
+ Bind a new option onto the global state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Option.Option.lift``1(``0)">
+<summary>
+ Lift a value into an option type.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Option">
+<summary>
+ Functions for dealing with option types.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.hexOfBytes(System.Byte[])">
+<summary>
+ Returns a hexidecimal string for a provided byte array.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.csvSeqString``1(Microsoft.FSharp.Core.FSharpFunc{``0,System.String})">
+<summary>
+ Returns a comma-separated string, consisiting of the elements of the provided sequence
+ mapped onto the provided string conversion function.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.parseCsvSeq``1(Microsoft.FSharp.Core.FSharpFunc{System.String,``0},System.String)">
+<summary>
+ Parses each comma-separated substring in a string using the provided parsing function and
+ returns the elements.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.toLower(System.String)">
+<summary>
+ Convert a string to lower case.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.toUpper(System.String)">
+<summary>
+ Convert a string to upper case.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.split(System.Char[],System.String)">
+<summary>
+ Split the string into an array of strings, breaking at any character in the `seps` array.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.trimStart(System.Char[],System.String)">
+<summary>
+ Trims any characters found in the `chars` array from the start of the string.
+</summary>
+</member>
+<member name="M:Endorphin.Core.StringModule.trimEnd(System.Char[],System.String)">
+<summary>
+ Trims any characters found in the `chars` array from the end of the string.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.SerialConfiguration">
+<summary>
+ Serial port configuration.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.ParityMode">
+<summary>
+ Serial port parity mode.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.StopBitMode">
+<summary>
+ Serial port stop bit mode.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.Instrument">
+<summary>
+ A VISA instrument, capable of reading, writing and querzRying strings and byte arrays.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.Message">
+<summary>
+ A message which may be passed to the VISA agent, describing what needs to be done.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.VisaCommand">
+<summary>
+ A VISA command which may be performed by the agent, describing what needs to be done.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.closeInstrument(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Close the connection to a VISA instrument.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.openGpibInstrument(System.String,System.Int32,Microsoft.FSharp.Core.FSharpOption{System.Int32})">
+<summary>
+ Open a GPIB VISA instrument with the given VISA identifier address and a timeout in milliseconds
+ to wait for each raw command. The optional write delay is used to delay further communication with
+ the hardware after each write command for a specified period.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.openTcpipInstrument(System.String,System.Int32,Microsoft.FSharp.Core.FSharpOption{System.Int32})">
+<summary>
+ Open a Ethernet VISA instrument with the given VISA identifier address and a timeout in milliseconds
+ to wait for each raw command. The optional write delay is used to delay further communication with
+ the hardware after each write command for a specified period.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.openSerialInstrument(System.String,System.Int32,Microsoft.FSharp.Core.FSharpOption{System.Int32},Endorphin.Core.Visa.SerialConfiguration)">
+<summary>
+ Open a RS-232 VISA instrument with the given VISA identifier address and a timeout in milliseconds
+ to wait for each raw command. The optional write delay is used to delay further communication with
+ the hardware after each write command for a specified period.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Bytes.query(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Query a VISA instrument for a byte array, using the given string as a query using synchronous I/O.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Bytes.write(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Write a byte array to a VISA instrument using synchronous I/O.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Bytes.read(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Read a byte array that the VISA instrument is broadcasting using synchronous I/O.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.Bytes">
+<summary>
+ Functions related to byte array-based I/O.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.String.query(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Query a VISA instrument for a string, using the given string as a query using synchronous I/O.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.String.write(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Write a string to a VISA instrument using synchronous I/O.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.String.read(Endorphin.Core.Visa.Instrument)">
+<summary>
+ Read a string that the VISA instrument is broadcasting using synchronous I/O.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.String">
+<summary>
+ Functions related to string-based I/O.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.create(System.String,System.Int32,Microsoft.FSharp.Core.FSharpOption{System.Int32},Microsoft.FSharp.Core.FSharpOption{Endorphin.Core.Visa.SerialConfiguration})">
+<summary>
+ Create an agent for communication with a VISA instrument. The optional write delay is used to
+ delay further communication with the hardware after each write command for a specified period.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.queryBytes(Ivi.Visa.IMessageBasedSession,System.Byte[])">
+<summary>
+ Query the byte array response of a VISA instrument to a command string synchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.queryString(Ivi.Visa.IMessageBasedSession,System.String)">
+<summary>
+ Query the string response of a VISA instrument to a command string synchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.queryGeneric``3(Microsoft.FSharp.Core.FSharpFunc{Ivi.Visa.IMessageBasedSession,Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Control.FSharpAsync{Microsoft.FSharp.Core.FSharpChoice{Microsoft.FSharp.Core.Unit,``1}}}},Microsoft.FSharp.Core.FSharpFunc{Ivi.Visa.IMessageBasedSession,Microsoft.FSharp.Control.FSharpAsync{Microsoft.FSharp.Core.FSharpChoice{``2,``1}}},Ivi.Visa.IMessageBasedSession,``0)">
+<summary>
+ The generic form of the query operation, with the reader used to interpret the returned
+ message.  Regardless of the read type, the writing is always done as a string.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.writeBytes(Ivi.Visa.IMessageBasedSession,System.Byte[])">
+<summary>
+ Write an array of bytes to a VISA instrument synchronously
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.writeString(Ivi.Visa.IMessageBasedSession,System.String)">
+<summary>
+ Write a string to a VISA instrument synchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.readBytes(Ivi.Visa.IMessageBasedSession)">
+<summary>
+ Read a byte array from a VISA instrument synchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.readString(Ivi.Visa.IMessageBasedSession)">
+<summary>
+ Read a sring from a VISA instrument synchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.openSerialSession(System.String,System.Int32,Endorphin.Core.Visa.SerialConfiguration)">
+<summary>
+ Open a VISA instrument session with additional configuration options for a serial connection
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.openSession(System.String,System.Int32)">
+<summary>
+ Open a VISA instrument session as an IMessageBasedSession, so communication can occur.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.description(Endorphin.Core.Visa.Message)">
+<summary>
+ Get the description of a VISA message passed to the agent.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.removeTerminators``1(Microsoft.FSharp.Core.FSharpChoice{System.String,``0})">
+<summary>
+ Remove unnecessary terminators from a string.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Visa.Agent.truncate(System.String)">
+<summary>
+ Truncate a string down to a set number of characters length (currently 75), replacing the
+ end characters with &quot;...&quot; if necessary.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa.Agent">
+<summary>
+ Functions for managing the agent through which communications to the VISA instrument must pass.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Visa">
+<summary>
+ Functions for creating connections and talking to VISA instruments in raw IO mode. Formatted IO using
+ the VISA formatting options is not supported.
+</summary>
+</member>
+</members>
+</doc>

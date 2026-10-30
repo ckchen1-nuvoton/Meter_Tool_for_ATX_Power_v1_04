@@ -1,0 +1,4561 @@
+﻿using Ivi.Visa;
+using Microsoft.Win32;
+using NationalInstruments.Visa;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Globalization;
+using System.IO;
+using System.IO.Ports;
+using System.Linq;
+using System.Management;
+using System.Resources;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Timers;
+using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
+using Excel = Microsoft.Office.Interop.Excel;
+
+
+
+namespace NADC_COM_Tool_v1_00
+{
+    public partial class Form1 : Form
+    {
+        private List<byte> sendBuffer = new List<byte>();
+
+        private System.Windows.Forms.Timer timer;
+        private int xValue1, xValue2, xValue3;
+        private Series series1, series2, series3;
+
+        public static int freq_int = 0;
+        public static float vrms_float = 0;
+        public static float irms_float = 0;
+        public static float power_float = 0;
+        public static float pf_value_float = 0;
+        public static float v_thd_float = 0;
+        public static float i_thd_float = 0;
+
+        List<int> freq_curve_data = new List<int>();
+        List<float> vrms_curve_data = new List<float>(); // Create an empty list to store data
+        List<float> irms_curve_data = new List<float>(); // Create an empty list to store data
+        List<float> powe_curve_data = new List<float>(); // Create an empty list to store data
+        List<float> pfva_curve_data = new List<float>(); // Create an empty list to store data
+        List<float> vthd_curve_data = new List<float>(); // Create an empty list to store data
+        List<float> ithd_curve_data = new List<float>(); // Create an empty list to store data
+
+        // 儀器位址不再寫死在原始碼裡（原本換一台儀器就要改這裡重編譯）。
+        // 改由 "Scan Devices" 掃描 USB VISA 後填入下拉，這兩個屬性即時取用當前選取項；
+        // 下拉為可編輯，必要時仍可手動貼上位址字串。
+        private string PowerMeter66202_Address
+        {
+            get
+            {
+                if (power_meter_cbb.SelectedItem is VisaDevice dev) return dev.Address;
+                return power_meter_cbb.Text.Trim();
+            }
+        }
+        private string DC_Load63202A_Address
+        {
+            get
+            {
+                if (dc_load_cbb.SelectedItem is VisaDevice dev) return dev.Address;
+                return dc_load_cbb.Text.Trim();
+            }
+        }
+
+
+        private List<byte> receiveBuffer = new List<byte>();  // Used to accumulate received data
+        private string targetTextBox = "";  // Used to store information about the clicked button
+        private int expectedLength = 19;    // Default expected length is 19 bytes, used for auto-report
+
+        public Form1()
+        {
+            InitializeComponent();
+            // 關閉視窗（按 X）前先安全收尾，避免 SerialPort 與 DataReceived 回呼死結卡死
+            this.FormClosing += Form1_FormClosing;
+        }
+
+        // 視窗關閉中：讓還在進行的 DataReceived 回呼立刻收手，不要再去 Invoke UI。
+        private volatile bool shuttingDown = false;
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            // 關閉通訊埠有兩個互相衝突的陷阱，必須同時避開：
+            //
+            //  a) 直接在 UI 執行緒呼叫 Close()：Close() 會等 DataReceived 回呼結束，
+            //     而回呼裡的 Invoke() 又在等 UI 執行緒 -> 互鎖。
+            //  b) 用 Task.Run() 射後不理：表單一關行程就結束，執行緒集區是背景執行緒
+            //     會被直接終止，Close() 常常還沒跑完，驅動層 handle 沒正常釋放，
+            //     下次開啟就會「拒絕存取通訊埠」，得拔插 USB 才能恢復。
+            //
+            // 解法：丟到背景執行緒關閉(避開 a)，但一定要等它做完(避開 b)；等待期間持續
+            // 泵送視窗訊息，卡在 Invoke() 的回呼才能完成，Close() 才回得來。
+            shuttingDown = true;
+            try { timer?.Stop(); } catch { }
+            try { DisconnectVisa(quiet: true); } catch { }
+            try { serialPort1.DataReceived -= new SerialDataReceivedEventHandler(DataReceivedHandler); } catch { }
+
+            if (serialPort1 != null && serialPort1.IsOpen)
+            {
+                var sp = serialPort1;
+                var done = new ManualResetEventSlim(false);
+
+                var closer = new Thread(() =>
+                {
+                    try { sp.DiscardInBuffer(); } catch { }
+                    try { sp.Close(); } catch { }
+                    try { sp.Dispose(); } catch { }
+                    done.Set();
+                });
+                closer.IsBackground = true;
+                closer.Start();
+
+                // 最多等 5 秒；真的關不掉也只能放行，讓行程結束比整個卡死好。
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (!done.IsSet && sw.ElapsedMilliseconds < 5000)
+                {
+                    Application.DoEvents();   // 讓卡在 Invoke() 的回呼跑完
+                    Thread.Sleep(10);
+                }
+
+                if (!done.IsSet)
+                    Console.WriteLine("Warning: serial port did not close within 5s.");
+            }
+        }
+
+        private void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
+        {
+            // 關閉流程已啟動就不要再碰 UI，否則 Invoke() 會與 Close() 互鎖
+            if (shuttingDown) return;
+
+            SerialPort sp = (SerialPort)sender;
+            int bytesToRead = sp.BytesToRead;
+            byte[] buffer = new byte[bytesToRead];
+            sp.Read(buffer, 0, bytesToRead);
+
+            // Add the received data to the global buffer
+            receiveBuffer.AddRange(buffer);
+
+            // Check if there is enough data to process
+            ProcessBuffer();
+        }
+        // 封包格式：0x49, LEN, payload(LEN bytes), SumZero  ->  總長 = LEN + 3
+        //   auto report 19 = 0x49 0x10 ... / cali 15 = 0x49 0x0C ... / 4 = 0x49 0x01 ... / 7 = 0x49 0x04 ...
+        private const byte FrameHeader = 0x49;
+
+        // 收包狀態全部歸零：緩衝區、預期封包長度、正在等待回填的目標欄位。
+        // 開埠與關埠都要呼叫 —— 上一次連線殘留的半截封包若留著，會跟新資料黏成一串，
+        // 開頭就不是 0x49，之後每一包都跟著錯位。
+        private void ResetReceiveState()
+        {
+            receiveBuffer.Clear();
+            expectedLength = 19;    // 回到 auto-report 模式
+            targetTextBox = "";
+        }
+
+        // 把緩衝區前端的雜訊丟掉，直到開頭是一個「框頭 + 長度」都對得上的封包。
+        // 插拔序列埠時 MCU 仍持續在送，開埠後收到的第一筆通常是從封包中間開始；
+        // 少了這道對齊，PC 會一直用錯的位移去切封包，資料永遠認不出來。
+        // 回傳 true 表示開頭已對齊（不保證已經收滿一整包）。
+        private bool ResyncToFrameHeader()
+        {
+            byte wantLen = (byte)(expectedLength - 3);   // 長度欄位 = 總長 - 框頭 - 長度 - 檢查碼
+            int dropped = 0;
+            bool aligned = false;
+
+            while (receiveBuffer.Count > 0)
+            {
+                if (receiveBuffer[0] == FrameHeader)
+                {
+                    // 只認 0x49 不夠：payload 裡剛好出現的 0x49 會被誤判成框頭，
+                    // 所以長度欄位也要符合目前正在等的封包。
+                    if (receiveBuffer.Count < 2) break;      // 還看不出來，等下一筆進來再判斷
+                    if (receiveBuffer[1] == wantLen) { aligned = true; break; }
+                }
+
+                receiveBuffer.RemoveAt(0);   // 對不上就往前挪一個 byte 繼續找
+                dropped++;
+            }
+
+            if (dropped > 0)
+                Console.WriteLine($"Resync : dropped {dropped} unaligned byte(s), waiting for 49 {wantLen:X2}");
+
+            return aligned;
+        }
+
+        // 檢查碼驗證：整包（含檢查碼）相加應為 0。
+        // 目前只記錄不丟包 —— 萬一韌體回傳的封包沒有補 SumZero，丟包會讓功能整個失效。
+        private static bool IsChecksumValid(byte[] frame)
+        {
+            byte sum = 0;
+            foreach (byte b in frame) sum += b;
+            return sum == 0;
+        }
+
+        private void ProcessBuffer()
+        {
+            // Process the 19-byte auto-report data
+            while (true)
+            {
+                // 每一輪都先對齊框頭，再看資料夠不夠一整包
+                if (!ResyncToFrameHeader()) return;
+                if (receiveBuffer.Count < expectedLength) return;
+
+                if (expectedLength == 19)
+                {
+                    // Process the 19-byte auto-report data
+                    byte[] autoReportData = receiveBuffer.GetRange(0, 19).ToArray();
+                    receiveBuffer.RemoveRange(0, 19);   // Remove the processed data
+
+                    // 檢查碼對不上多半代表這包仍未對齊或線上有雜訊。這裡只記錄不丟包，
+                    // 若確認韌體每包都補了 SumZero，可以改成直接丟棄這一包。
+                    if (!IsChecksumValid(autoReportData))
+                        Console.WriteLine("Warning : auto-report checksum mismatch.");
+
+                    ProcessAutoReport(autoReportData);
+                }
+                else if (expectedLength == 15)
+                {
+                    // Process the 19-byte auto-report data
+                    byte[] autoReportData = receiveBuffer.GetRange(0, 15).ToArray();
+                    //receiveBuffer.RemoveRange(0, 15);   // Remove the processed data
+                    receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid data frame
+
+                    // Update the corresponding control based on targetTextBox
+                    ProcessCaliData(autoReportData);
+
+                    // Resume 19-byte reception mode
+                    //expectedLength = 19;
+
+                    // Send start command
+                    //byte[] myBytes14 = { 0x49, 0x02, 0x81, 0x7F, 0xB5 };
+                    //serialPort1.Write(myBytes14, 0, myBytes14.Length); // Write out 6 bytes of data
+                    //Thread.Sleep(100);  // Delay 100ms
+                }
+                else if (expectedLength == 4)
+                {
+                    // Process 4 bytes of data
+                    byte[] commandResponse = receiveBuffer.GetRange(0, 4).ToArray();
+                    receiveBuffer.RemoveRange(0, 4);   // Remove the processed data
+
+                    // Update the corresponding control based on the targetTextBox
+                    ProcessDataForTextBox(commandResponse, targetTextBox);
+
+                    // Resume 19-byte reception mode
+                    expectedLength = 19;
+
+                    // Send start command
+                    // 本方法由 DataReceived 的背景執行緒呼叫。若使用者剛好在回呼進行中
+                    // 按下 Close，對已關閉的埠寫入會拋例外，而背景執行緒的未處理例外
+                    // 會直接讓程式崩潰，所以這裡必須檢查。
+                    if (serialPort1.IsOpen)
+                    {
+                        byte[] myBytes14 = { 0x49, 0x02, 0x81, 0x7F, 0xB5 };
+                        serialPort1.Write(myBytes14, 0, myBytes14.Length); // Write out 6 bytes of data
+                        Thread.Sleep(100);  // Delay 100ms
+                    }
+                }
+                else if (expectedLength == 7)
+                {
+                    // Process 4 bytes of data
+                    byte[] commandResponse = receiveBuffer.GetRange(0, 7).ToArray();
+                    receiveBuffer.RemoveRange(0, 7);   // Remove the processed data
+
+                    // Update the corresponding control based on the targetTextBox
+                    ProcessDataForTextBox(commandResponse, targetTextBox);
+
+                    // Resume 19-byte reception mode
+                    expectedLength = 19;
+
+                    // Send start command
+                    // 本方法由 DataReceived 的背景執行緒呼叫。若使用者剛好在回呼進行中
+                    // 按下 Close，對已關閉的埠寫入會拋例外，而背景執行緒的未處理例外
+                    // 會直接讓程式崩潰，所以這裡必須檢查。
+                    if (serialPort1.IsOpen)
+                    {
+                        byte[] myBytes14 = { 0x49, 0x02, 0x81, 0x7F, 0xB5 };
+                        serialPort1.Write(myBytes14, 0, myBytes14.Length); // Write out 6 bytes of data
+                        Thread.Sleep(100);  // Delay 100ms
+                    }
+                }
+                else
+                {
+                    // 防呆：expectedLength 若被設成未知值，上面沒有任何分支會消耗資料，
+                    // while (true) 會空轉卡死執行緒。直接重置回 auto-report 模式。
+                    Console.WriteLine($"Unexpected expectedLength = {expectedLength}, reset to 19.");
+                    ResetReceiveState();
+                    return;
+                }
+            }
+        }
+
+        private void ProcessCaliData(byte[] buffer)
+        {
+            Console.WriteLine("-------------------------------------------------------------------------");
+            // Debug: Convert the received data to a string
+            string result = BitConverter.ToString(buffer, 0, buffer.Length).Replace("-", " ");
+            Console.WriteLine(result);
+            Console.WriteLine("-------------------------------------------------------------------------");
+
+            // Process the received data here
+            if ((buffer[0] == 0x49) && (buffer[1] == 0x0C))
+            {
+                uint Vrms_int32 = (uint)(buffer[2] << 24 | buffer[3] << 16 | buffer[4] << 8 | buffer[5]);
+                float Vrms_float = (float)(Vrms_int32 / 1000.0);
+                Console.WriteLine("Vrms : " + Vrms_float);
+                //p3_vrms_box.Text = Vrms_float.ToString();
+
+                uint Irms_int32 = (uint)(buffer[6] << 24 | buffer[7] << 16 | buffer[8] << 8 | buffer[9]);
+                float Irms_float = (float)(Irms_int32 / 128000.0);
+                Console.WriteLine("Irms : " + Irms_float);
+                //p3_irms_box.Text = Irms_float.ToString();
+
+                uint Pavg_int32 = (uint)(buffer[10] << 24 | buffer[11] << 16 | buffer[12] << 8 | buffer[13]);
+                float Pavg_float = (float)(Pavg_int32 / 1000.0);
+                Console.WriteLine("Pavg : " + Pavg_float);
+                //p3_pavg_box.Text = Pavg_float.ToString();
+
+
+                // Determine which TextBox to display based on targetTextBox
+                if (targetTextBox == "p3_vrms_box")
+                {
+                    // Update the UI
+                    Action action = () =>
+                    {
+                        /*
+                        p3_vrms_box.Clear();
+                        p3_irms_box.Clear();
+                        p3_pavg_box.Clear();
+                        Thread.Sleep(100);  // Delay 100ms
+                        p3_vrms_box.Text = Vrms_float.ToString();
+                        p3_irms_box.Text = Irms_float.ToString();
+                        p3_pavg_box.Text = Pavg_float.ToString();
+                        */
+                    };
+                    this.Invoke(action);
+                }
+                else if (targetTextBox == "p1_vrms_box")
+                {
+                    // Update the UI
+                    Action action = () =>
+                    {
+                        /*
+                        p1_vrms_box.Clear();
+                        p1_irms_box.Clear();
+                        p1_pavg_box.Clear();
+                        Thread.Sleep(100);  // Delay 100ms
+                        p1_vrms_box.Text = Vrms_float.ToString();
+                        p1_irms_box.Text = Irms_float.ToString();
+                        p1_pavg_box.Text = Pavg_float.ToString();
+                        */
+                    };
+                    this.Invoke(action);
+                }
+                else if (targetTextBox == "p2_vrms_box")
+                {
+                    // Update the UI
+                    Action action = () =>
+                    {
+                        /*
+                        p2_vrms_box.Clear();
+                        p2_irms_box.Clear();
+                        p2_pavg_box.Clear();
+                        Thread.Sleep(100);  // Delay 100ms
+                        p2_vrms_box.Text = Vrms_float.ToString();
+                        p2_irms_box.Text = Irms_float.ToString();
+                        p2_pavg_box.Text = Pavg_float.ToString();
+                        */
+                    };
+                    this.Invoke(action);
+                }
+                else if (targetTextBox == "p4_vrms_box")
+                {
+                    // Update the UI
+                    Action action = () =>
+                    {
+                        /*
+                        p4_vrms_box.Clear();
+                        p4_irms_box.Clear();
+                        p4_pavg_box.Clear();
+                        Thread.Sleep(100);  // Delay 100ms
+                        p4_vrms_box.Text = Vrms_float.ToString();
+                        p4_irms_box.Text = Irms_float.ToString();
+                        p4_pavg_box.Text = Pavg_float.ToString();
+                        */
+                    };
+                    this.Invoke(action);
+                }
+
+                // Clear the data in the serial port receive buffer
+                // 同樣是背景執行緒路徑，埠可能已被 Close 掉
+                if (serialPort1.IsOpen)
+                {
+                    try { serialPort1.DiscardInBuffer(); } catch { }
+                }
+                receiveBuffer.Clear();  // 清除整个缓冲区，等待下一个有效数据帧
+            }
+        }
+
+        // Process auto-report data
+        private void ProcessAutoReport(byte[] buffer)
+        {
+            // Debug: Convert the read data to a string
+            string result = BitConverter.ToString(buffer, 0, buffer.Length).Replace("-", " ");
+            Console.WriteLine(result);
+
+            // Check if the first byte is 0x49 and the second byte is 0x10
+            if (buffer[0] == 0x49 && buffer[1] == 0x10)
+            {
+                // Process the auto-report data
+                int auto_report_vrms = buffer[4] << 16 | buffer[3] << 8 | buffer[2];
+                vrms_float = (float)(auto_report_vrms / 1000.0);
+                Console.WriteLine("auto_report_vrms : " + vrms_float);
+
+                int auto_report_irms = buffer[7] << 16 | buffer[6] << 8 | buffer[5];
+                irms_float = (float)(auto_report_irms / 128000.0);
+                Console.WriteLine("auto_report_irms : " + irms_float);
+
+                int auto_report_power = buffer[10] << 16 | buffer[9] << 8 | buffer[8];
+                power_float = (float)(auto_report_power / 1000.0);
+                Console.WriteLine("auto_report_power : " + power_float);
+
+                int auto_report_frequency = buffer[13] << 16 | buffer[12] << 8 | buffer[11];
+                freq_int = auto_report_frequency / 1000;
+                Console.WriteLine("auto_report_frequency : " + freq_int);
+
+                // Update the UI
+                Action action = () =>
+                {
+                    freq_box.Text = freq_int.ToString();
+
+                    vrms_box.ForeColor = Color.FromArgb(255, 40, 53, 118);
+                    vrms_box.Text = vrms_float.ToString("N2");
+
+                    irms_box.ForeColor = Color.FromArgb(255, 2, 97, 97);
+                    irms_box.Text = irms_float.ToString("N5");
+
+                    watt_box.ForeColor = Color.FromArgb(255, 115, 73, 48);
+                    watt_box.Text = power_float.ToString("N3");
+                };
+                this.Invoke(action);
+            }
+        }
+
+        private void ProcessDataForTextBox(byte[] data, string targetTextBox)
+        {
+            // Debug: Convert the received data to a string and output it to the console
+            string result = BitConverter.ToString(data, 0, data.Length).Replace("-", " ");
+            Console.WriteLine("Received Data for " + targetTextBox + ": " + result);
+
+            // Determine which TextBox to display based on the targetTextBox
+            if (targetTextBox == "chip_ssid_box")
+            {
+                if (chip_ssid_box.InvokeRequired)
+                {
+                    chip_ssid_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x01
+                        if (data[0] == 0x49 && data[1] == 0x01)
+                        {
+                            byte thirdByte = data[2];
+                            Console.WriteLine("Value : " + thirdByte);
+                            string dataString = thirdByte.ToString("D2");
+                            chip_ssid_box.AppendText(dataString);
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "fw_ver_box")
+            {
+                if (fw_ver_box.InvokeRequired)
+                {
+                    fw_ver_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x01
+                        if (data[0] == 0x49 && data[1] == 0x01)
+                        {
+                            byte thirdByte = data[2];
+                            Console.WriteLine("Value : " + thirdByte);
+                            string dataString = thirdByte.ToString("D2");
+                            fw_ver_box.AppendText(dataString);
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "status_box")
+            {
+                if (fw_ver_box.InvokeRequired)
+                {
+                    fw_ver_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x01
+                        if (data[0] == 0x49 && data[1] == 0x01)
+                        {
+                            byte thirdByte = data[2];
+                            Console.WriteLine("Value : " + thirdByte);
+                            string dataString = thirdByte.ToString("D1");
+                            //string dataString = "0x" + thirdByte.ToString("X2"); // Format as two-digit hexadecimal using "X2" and add "0x" prefix
+                            status_box.AppendText(dataString);
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p1_vrms_box")
+            {
+                if (p3_vrms_box.InvokeRequired)
+                {
+                    p3_vrms_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Vrms_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Vrms_float = (float)(Vrms_int32 / 1000.0);
+                            Console.WriteLine("Value : " + Vrms_float);
+                            p1_vrms_box.Text = Vrms_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p1_irms_box")
+            {
+                if (p3_irms_box.InvokeRequired)
+                {
+                    p3_irms_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Irms_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Irms_float = (float)(Irms_int32 / 128000.0);
+                            Console.WriteLine("Value : " + Irms_float);
+                            p1_irms_box.Text = Irms_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p1_pavg_box")
+            {
+                if (p3_pavg_box.InvokeRequired)
+                {
+                    p3_pavg_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Pavg_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Pavg_float = (float)(Pavg_int32 / 1000.0);
+                            Console.WriteLine("Value : " + Pavg_float);
+                            p1_pavg_box.Text = Pavg_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p2_vrms_box")
+            {
+                if (p2_vrms_box.InvokeRequired)
+                {
+                    p2_vrms_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Vrms_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Vrms_float = (float)(Vrms_int32 / 1000.0);
+                            Console.WriteLine("Value : " + Vrms_float);
+                            p2_vrms_box.Text = Vrms_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p2_irms_box")
+            {
+                if (p2_irms_box.InvokeRequired)
+                {
+                    p2_irms_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Irms_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Irms_float = (float)(Irms_int32 / 128000.0);
+                            Console.WriteLine("Value : " + Irms_float);
+                            p2_irms_box.Text = Irms_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p2_pavg_box")
+            {
+                if (p2_pavg_box.InvokeRequired)
+                {
+                    p2_pavg_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Pavg_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Pavg_float = (float)(Pavg_int32 / 1000.0);
+                            Console.WriteLine("Value : " + Pavg_float);
+                            p2_pavg_box.Text = Pavg_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p3_vrms_box")
+            {
+                if (p1_vrms_box.InvokeRequired)
+                {
+                    p1_vrms_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Vrms_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Vrms_float = (float)(Vrms_int32 / 1000.0);
+                            Console.WriteLine("Value : " + Vrms_float);
+                            p3_vrms_box.Text = Vrms_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p3_irms_box")
+            {
+                if (p1_irms_box.InvokeRequired)
+                {
+                    p1_irms_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Irms_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Irms_float = (float)(Irms_int32 / 128000.0);
+                            Console.WriteLine("Value : " + Irms_float);
+                            p3_irms_box.Text = Irms_float.ToString();
+                        }
+                    }));
+                }
+            }
+            else if (targetTextBox == "p3_pavg_box")
+            {
+                if (p1_pavg_box.InvokeRequired)
+                {
+                    p1_pavg_box.Invoke(new Action(() =>
+                    {
+                        // Check if the first byte is 0x49 and the second byte is 0x04
+                        if (data[0] == 0x49 && data[1] == 0x04)
+                        {
+                            uint Pavg_int32 = (uint)(data[2] << 24 | data[3] << 16 | data[4] << 8 | data[5]);
+                            float Pavg_float = (float)(Pavg_int32 / 1000.0);
+                            Console.WriteLine("Value : " + Pavg_float);
+                            p3_pavg_box.Text = Pavg_float.ToString();
+                        }
+                    }));
+                }
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (serialPort1.IsOpen == false)
+                {
+                    // port_cbb 顯示的是友善名稱（例 "Silico..(COM11)"），必須先萃取出 COMxx
+                    serialPort1.PortName = parsePortName(port_cbb.Text);
+                    //serialPort1.BaudRate = Convert.ToInt32(speed_cbb.Text);
+                    //serialPort1.DataBits = Convert.ToInt32(data_cbb.Text);
+                    serialPort1.BaudRate = 115200;
+                    serialPort1.DataBits = 8;
+                    serialPort1.Parity = Parity.None;
+                    serialPort1.StopBits = StopBits.One;
+                    serialPort1.RtsEnable = false;
+                    serialPort1.DtrEnable = false;
+                    /*
+                    switch (parity_cbb.SelectedIndex)
+                    {
+                        // None, Odd, Even
+                        case 0:
+                            serialPort1.Parity = Parity.None;
+                            break;
+                        case 1:
+                            serialPort1.Parity = Parity.Odd;
+                            break;
+                        case 2:
+                            serialPort1.Parity = Parity.Even;
+                            break;
+                        default:
+                            serialPort1.Parity = Parity.None;
+                            break;
+                    }
+                    
+                    switch (stop_cbb.SelectedIndex)
+                    {
+                        // 1, 1.5, 2 bit
+                        case 0:
+                            serialPort1.StopBits = StopBits.One;
+                            break;
+                        case 1:
+                            serialPort1.StopBits = StopBits.OnePointFive;
+                            break;
+                        case 2:
+                            serialPort1.StopBits = StopBits.Two;
+                            break;
+                        default:
+                            serialPort1.StopBits = StopBits.One;
+                            break;
+                    }
+                    */
+
+                    serialPort1.Open();
+                    connection_btn.Text = "Close";
+                    SetStatus(StatusLevel.Info, $"Connected with {serialPort1.PortName}");
+                    // 插拔序列埠時 MCU 並不會停止送 UART，開埠當下驅動層緩衝區裡幾乎一定是
+                    // 從封包中間開始的半截資料，直接收就會錯位（第一個 byte 不是 0x49）。
+                    // 先等 100ms 讓線上正在送的那一包走完，再把驅動層與程式端的緩衝區一起
+                    // 清乾淨，最後才掛上 DataReceived，確保是從乾淨狀態開始收。
+                    Thread.Sleep(100);  // Delay 100ms
+
+                    // Clear the serial port receive buffer data
+                    try { serialPort1.DiscardInBuffer(); } catch { }
+                    try { serialPort1.DiscardOutBuffer(); } catch { }
+                    ResetReceiveState();
+
+                    // Send stop command
+                    //byte[] myBytes1 = { 0x49, 0x01, 0x71, 0x00, 0xD4, 0x19  };
+                    //serialPort1.Write(myBytes1, 0, myBytes1.Length); // Write out 7 bytes of data
+                    //Thread.Sleep(100);  // Delay 100ms
+                    //
+
+                    // Start the calculation thread
+                    //thread1 = new Thread(new ThreadStart(DoWork1));
+                    //thread1.Start();
+                    //isThread1Running = true;
+
+                    // Chart            
+                    // Start the Timer control
+                    timer.Start();
+
+                    // Bind the DataReceived event handler
+                    serialPort1.DataReceived += new SerialDataReceivedEventHandler(DataReceivedHandler);
+                }
+                else
+                {
+                    // 關閉順序很重要：
+                    //  1. 先停 Timer，圖表才不會在關埠後繼續捲動
+                    //  2. 先解除 DataReceived 訂閱，避免 Close() 等待回呼執行緒時卡死
+                    //  3. DiscardInBuffer() 必須在 Close() 之「前」呼叫 —— 對已關閉的埠
+                    //     呼叫會丟 InvalidOperationException，原本的順序會讓例外中斷後面
+                    //     的 timer.Stop()，並讓 catch 顯示誤導的 "Cannot open"。
+                    string closingPort = serialPort1.PortName;
+
+                    // Chart : stop the Timer control
+                    timer.Stop();
+
+                    // Unbind the DataReceived event handler
+                    serialPort1.DataReceived -= new SerialDataReceivedEventHandler(DataReceivedHandler);
+
+                    // Clear the serial port receive buffer data (while the port is still open)
+                    try { serialPort1.DiscardInBuffer(); } catch { }
+                    try { serialPort1.DiscardOutBuffer(); } catch { }
+                    ResetReceiveState();
+
+                    serialPort1.Close();
+
+                    // 解除訂閱到真正關埠之間可能還有一個回呼把資料塞進來，關完再清一次，
+                    // 這樣下次 Open 一定是從空的緩衝區開始，不會與上次的殘料黏在一起。
+                    ResetReceiveState();
+
+                    connection_btn.Text = "Open";
+                    SetStatus(StatusLevel.Info, $"Disconnected with {closingPort}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Handle exceptions
+                Console.WriteLine("Error : " + ex.Message);
+
+                // 開啟與關閉要分開報，否則關閉失敗也會顯示 "Cannot open"
+                string action = serialPort1.IsOpen ? "close" : "open";
+                SetStatus(StatusLevel.Error, $"Cannot {action} {serialPort1.PortName} - {ex.Message}");
+            }
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            // 儲存最新400筆資料
+            //freq_curve_data.Add(freq_int);
+            //if (freq_curve_data.Count > 400)
+            //freq_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+            //powe_curve_data.Add(power_float);
+            //if (powe_curve_data.Count > 400)
+            //powe_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+            //pfva_curve_data.Add(pf_value_float);
+            //if (pfva_curve_data.Count > 400)
+            //pfva_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+            //vthd_curve_data.Add(v_thd_float);
+            //if (vthd_curve_data.Count > 400)
+            //vthd_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+            //ithd_curve_data.Add(i_thd_float);
+            //if (ithd_curve_data.Count > 400)
+            //ithd_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+
+
+            // 讀取400筆vrms，並且算出max跟min
+            vrms_curve_data.Add(vrms_float);
+            if (vrms_curve_data.Count > 400)
+                vrms_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+
+            // 找到最大值和最小值            
+            float vrms_maxValue = vrms_curve_data.Max();
+            float vrms_minValue = vrms_curve_data.Min();
+            //Console.WriteLine("vrms_maxValue : " + vrms_maxValue);
+            //Console.WriteLine("vrms_minValue : " + vrms_minValue);
+
+            // 假设 e.Data 是一个 float 类型的数据数组
+            irms_curve_data.Add(irms_float);
+            if (irms_curve_data.Count > 400)
+                irms_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+
+            // 找到最大值和最小值
+            float irms_maxValue = irms_curve_data.Max();
+            float irms_minValue = irms_curve_data.Min();
+            //Console.WriteLine("irms_maxValue : " + irms_maxValue);
+            //Console.WriteLine("irms_minValue : " + irms_minValue);
+
+            // 假设 e.Data 是一个 float 类型的数据数组
+            powe_curve_data.Add(power_float);
+            if (powe_curve_data.Count > 400)
+                powe_curve_data.RemoveAt(0); // 删除最旧的数据（位于列表的首位）
+
+            // 找到最大值和最小值
+            float powe_maxValue = powe_curve_data.Max();
+            float powe_minValue = powe_curve_data.Min();
+            //Console.WriteLine("powe_maxValue : " + powe_maxValue);
+            //Console.WriteLine("powe_minValue : " + powe_minValue);
+
+            // 将数据添加到曲线中
+            series1.Points.AddXY(xValue1, vrms_float);
+            //chart1.Series["Series1"].Color = Color.Blue;
+
+            // 设置 X 轴的范围，仅显示最新的100个数据点
+            chart1.ChartAreas[0].AxisX.Minimum = xValue1 - 400;
+            chart1.ChartAreas[0].AxisX.Maximum = xValue1;
+            chart1.ChartAreas[0].AxisY.LabelStyle.Format = "0.00";
+            chart1.ChartAreas[0].AxisY.Interval = 0;
+            //chart1.ChartAreas[0].AxisY.Title = "Vrms";
+
+            if ((vrms_maxValue > 60) && (vrms_maxValue != vrms_minValue))
+            {
+                chart1.ChartAreas[0].AxisY.Maximum = vrms_maxValue;
+                chart1.ChartAreas[0].AxisY.Minimum = vrms_minValue;
+            }
+            else
+            {
+                // 设置Y轴自动调整最小值和最大值
+                chart1.ChartAreas[0].AxisY.Maximum = double.NaN;
+                chart1.ChartAreas[0].AxisY.Minimum = double.NaN;
+            }
+
+            // 将数据添加到曲线中
+            series2.Points.AddXY(xValue2, irms_float);
+            //chart2.Series["Series2"].Color = Color.Green;
+
+            // 设置 X 轴的范围，仅显示最新的100个数据点
+            chart2.ChartAreas[0].AxisX.Minimum = xValue2 - 400;
+            chart2.ChartAreas[0].AxisX.Maximum = xValue2;
+            chart2.ChartAreas[0].AxisY.LabelStyle.Format = "0.000";
+            chart2.ChartAreas[0].AxisY.Interval = 0;
+            //chart2.ChartAreas[0].AxisY.Title = "Irms";
+
+            if (irms_maxValue > 0 && (irms_maxValue != irms_minValue))
+            {
+                chart2.ChartAreas[0].AxisY.Maximum = irms_maxValue;
+                chart2.ChartAreas[0].AxisY.Minimum = irms_minValue;
+            }
+            else
+            {
+                // 设置Y轴自动调整最小值和最大值
+                chart2.ChartAreas[0].AxisY.Maximum = double.NaN;
+                chart2.ChartAreas[0].AxisY.Minimum = double.NaN;
+            }
+
+            // 将数据添加到曲线中
+            series3.Points.AddXY(xValue3, power_float);
+            //chart3.Series["Series3"].Color = Color.Red;
+
+            // 设置 X 轴的范围，仅显示最新的100个数据点
+            chart3.ChartAreas[0].AxisX.Minimum = xValue3 - 400;
+            chart3.ChartAreas[0].AxisX.Maximum = xValue3;
+            chart3.ChartAreas[0].AxisY.LabelStyle.Format = "0.00";
+            chart3.ChartAreas[0].AxisY.Interval = 0;
+            //chart3.ChartAreas[0].AxisY.Title = "Power";
+
+            if (powe_maxValue > 0 && (powe_maxValue != powe_minValue))
+            {
+                chart3.ChartAreas[0].AxisY.Maximum = powe_maxValue;
+                chart3.ChartAreas[0].AxisY.Minimum = powe_minValue;
+            }
+            else
+            {
+                // 设置Y轴自动调整最小值和最大值
+                chart3.ChartAreas[0].AxisY.Maximum = double.NaN;
+                chart3.ChartAreas[0].AxisY.Minimum = double.NaN;
+            }
+
+            // 刷新图表
+            chart1.Refresh();
+            chart2.Refresh();
+            chart3.Refresh();
+
+            // 增加 X 值
+            xValue1++;
+            xValue2++;
+            xValue3++;
+        }
+
+        /*
+        public class CRC8
+        {
+            private const byte Polynomial = 0x07; 
+
+            public byte CalculateCRC(byte[] data)
+            {
+                byte crc = 0;
+                foreach (byte b in data)
+                {
+                    crc ^= b;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        if ((crc & 0x80) != 0)
+                        {
+                            crc = (byte)((crc << 1) ^ Polynomial);
+                        }
+                        else
+                        {
+                            crc <<= 1;
+                        }
+                    }
+                }
+                return crc;
+            }
+        }
+        */
+
+        public class SumZeroCalculator
+        {
+            public byte CalculateSumZero(byte[] data)
+            {
+                byte sum = 0;
+
+                // Summing the data
+                foreach (byte b in data)
+                {
+                    sum += b;
+                }
+
+                // Two's complement
+                byte sumZero = (byte)(0xFF - sum + 1);
+                return sumZero;
+            }
+        }
+        #region Accuracy table (tab 1)
+
+        // 一個負載點的量測結果：外部儀器(參考) 與 MCU(NADC24) 各三個值。
+        private sealed class SweepPoint
+        {
+            public int Percent;          // 負載百分比 5, 10, ... 100
+            public double SetCurrent;    // 送給電子負載的設定電流 (A)
+            public double RefV, RefI, RefP;   // Chroma / WT310E 讀值
+            public double McuV, McuI, McuP;   // NADC24 讀值
+        }
+
+        private readonly List<SweepPoint> sweepPoints = new List<SweepPoint>();
+
+        // 誤差% = (參考值 - 量測值) / 參考值 * 100
+        // 與 800W_PGA32算法.xlsx 的電壓/電流/功率誤差欄位定義一致。
+        private static string ErrPct(double reference, double measured)
+        {
+            if (reference == 0) return "";
+            return (((reference - measured) / reference) * 100.0).ToString("F3", CultureInfo.InvariantCulture);
+        }
+
+        // 重新掃描前呼叫：清空累積的資料與表格。
+        private void ResetAccuracyTable()
+        {
+            sweepPoints.Clear();
+            accuracy_grid.Rows.Clear();
+            accuracy_grid.Columns.Clear();
+        }
+
+        // 依 xlsx 的版面重畫表格：每個負載點一欄，量測項目一列。
+        private void RefreshAccuracyTable()
+        {
+            if (accuracy_grid.InvokeRequired)
+            {
+                accuracy_grid.Invoke((Action)RefreshAccuracyTable);
+                return;
+            }
+
+            accuracy_grid.Rows.Clear();
+            accuracy_grid.Columns.Clear();
+            if (sweepPoints.Count == 0) return;
+
+            // 第一欄是項目名稱，之後每個負載點一欄
+            accuracy_grid.Columns.Add("item", "Item");
+            accuracy_grid.Columns[0].Width = 108;
+            accuracy_grid.Columns[0].DefaultCellStyle.Font =
+                new Font(accuracy_grid.Font, FontStyle.Bold);
+            accuracy_grid.Columns[0].Frozen = true;   // 橫向捲動時項目名稱固定
+
+            foreach (var p in sweepPoints)
+            {
+                int idx = accuracy_grid.Columns.Add("p" + p.Percent, p.Percent + "%");
+                accuracy_grid.Columns[idx].Width = 72;
+                accuracy_grid.Columns[idx].DefaultCellStyle.Alignment =
+                    DataGridViewContentAlignment.MiddleRight;
+                accuracy_grid.Columns[idx].SortMode = DataGridViewColumnSortMode.NotSortable;
+            }
+
+            // 誤差擺在最上面 —— 這一頁的重點就是精準度，不必捲動就要看得到
+            AddAccuracyRow("Voltage err %", p => ErrPct(p.RefV, p.McuV), true);
+            AddAccuracyRow("Current err %", p => ErrPct(p.RefI, p.McuI), true);
+            AddAccuracyRow("Power err %",   p => ErrPct(p.RefP, p.McuP), true);
+
+            AddAccuracyRow("Set current A", p => p.SetCurrent.ToString("F2", CultureInfo.InvariantCulture), false);
+            AddAccuracyRow("Ref Vrms",      p => p.RefV.ToString("F2", CultureInfo.InvariantCulture), false);
+            AddAccuracyRow("Ref Irms",      p => p.RefI.ToString("F4", CultureInfo.InvariantCulture), false);
+            AddAccuracyRow("Ref Pactive",   p => p.RefP.ToString("F2", CultureInfo.InvariantCulture), false);
+            AddAccuracyRow("NADC24 Vrms",   p => p.McuV.ToString("F2", CultureInfo.InvariantCulture), false);
+            AddAccuracyRow("NADC24 Irms",   p => p.McuI.ToString("F5", CultureInfo.InvariantCulture), false);
+            AddAccuracyRow("NADC24 Pactive",p => p.McuP.ToString("F3", CultureInfo.InvariantCulture), false);
+
+            accuracy_grid.ClearSelection();
+        }
+
+        private void AddAccuracyRow(string title, Func<SweepPoint, string> cell, bool isError)
+        {
+            var values = new List<object> { title };
+            foreach (var p in sweepPoints) values.Add(cell(p));
+
+            int r = accuracy_grid.Rows.Add(values.ToArray());
+
+            if (!isError) return;
+
+            // 誤差列上色：|err| > 1% 標紅，> 0.5% 標橘，其餘綠色，一眼看出哪個負載點超規
+            for (int c = 1; c < accuracy_grid.Columns.Count; c++)
+            {
+                string s = accuracy_grid.Rows[r].Cells[c].Value as string;
+                if (string.IsNullOrEmpty(s)) continue;
+                if (!double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) continue;
+
+                double a = Math.Abs(v);
+                accuracy_grid.Rows[r].Cells[c].Style.ForeColor =
+                    a > 1.0 ? Color.Firebrick : (a > 0.5 ? Color.DarkOrange : Color.ForestGreen);
+            }
+        }
+
+        // 掃描迴圈每量完一個負載點就呼叫這裡累積一筆並即時更新畫面。
+        private void AddSweepPoint(int percent, double setCurrent,
+                                   double refV, double refI, double refP,
+                                   double mcuV, double mcuI, double mcuP)
+        {
+            sweepPoints.Add(new SweepPoint
+            {
+                Percent = percent,
+                SetCurrent = setCurrent,
+                RefV = refV, RefI = refI, RefP = refP,
+                McuV = mcuV, McuI = mcuI, McuP = mcuP
+            });
+            RefreshAccuracyTable();
+        }
+
+        // ===== Export CSV =====
+        // 掃描結果只留在畫面上，關掉程式就沒了；報告和後續比對都要原始數字，
+        // 所以這裡把表格原樣（項目為列、負載點為欄）倒成 CSV。
+        // 數值一律用 InvariantCulture 輸出，小數點固定是 '.'，換到其他語系的機器
+        // 才不會變成逗號而撞到欄位分隔符號。
+        private void export_accuracy_btn_Click(object sender, EventArgs e)
+        {
+            if (sweepPoints.Count == 0)
+            {
+                SetStatus(StatusLevel.Warn, "Export CSV: no measurement data - run a sweep first.");
+                return;
+            }
+
+            using (var dlg = new SaveFileDialog())
+            {
+                dlg.Title = "Export Accuracy";
+                dlg.Filter = "CSV file (*.csv)|*.csv|All files (*.*)|*.*";
+                dlg.DefaultExt = "csv";
+                dlg.AddExtension = true;
+                dlg.FileName = "Accuracy_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv";
+
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                try
+                {
+                    // UTF-8 with BOM，讓 Excel 直接雙擊開啟時不會亂碼
+                    File.WriteAllText(dlg.FileName, BuildAccuracyCsv(), new UTF8Encoding(true));
+                    SetStatus(StatusLevel.Info, $"Accuracy exported - {dlg.FileName}");
+                }
+                catch (Exception ex)
+                {
+                    SetStatus(StatusLevel.Error, "Export CSV failed - " + ex.Message);
+                }
+            }
+        }
+
+        // 版面與 accuracy_grid 一致：第一欄是項目名稱，其後每個負載點一欄。
+        private string BuildAccuracyCsv()
+        {
+            var sb = new StringBuilder();
+
+            sb.Append("Exported,").AppendLine(CsvCell(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
+            sb.Append("Points,").AppendLine(sweepPoints.Count.ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine();
+
+            sb.Append("Item");
+            foreach (var pt in sweepPoints)
+                sb.Append(',').Append(pt.Percent.ToString(CultureInfo.InvariantCulture)).Append('%');
+            sb.AppendLine();
+
+            AppendCsvRow(sb, "Voltage err %",  pt => ErrPct(pt.RefV, pt.McuV));
+            AppendCsvRow(sb, "Current err %",  pt => ErrPct(pt.RefI, pt.McuI));
+            AppendCsvRow(sb, "Power err %",    pt => ErrPct(pt.RefP, pt.McuP));
+
+            AppendCsvRow(sb, "Set current A",  pt => pt.SetCurrent.ToString("F2", CultureInfo.InvariantCulture));
+            AppendCsvRow(sb, "Ref Vrms",       pt => pt.RefV.ToString("F2", CultureInfo.InvariantCulture));
+            AppendCsvRow(sb, "Ref Irms",       pt => pt.RefI.ToString("F4", CultureInfo.InvariantCulture));
+            AppendCsvRow(sb, "Ref Pactive",    pt => pt.RefP.ToString("F2", CultureInfo.InvariantCulture));
+            AppendCsvRow(sb, "NADC24 Vrms",    pt => pt.McuV.ToString("F2", CultureInfo.InvariantCulture));
+            AppendCsvRow(sb, "NADC24 Irms",    pt => pt.McuI.ToString("F5", CultureInfo.InvariantCulture));
+            AppendCsvRow(sb, "NADC24 Pactive", pt => pt.McuP.ToString("F3", CultureInfo.InvariantCulture));
+
+            return sb.ToString();
+        }
+
+        private void AppendCsvRow(StringBuilder sb, string title, Func<SweepPoint, string> cell)
+        {
+            sb.Append(CsvCell(title));
+            foreach (var pt in sweepPoints) sb.Append(',').Append(CsvCell(cell(pt)));
+            sb.AppendLine();
+        }
+
+        // 逗號、雙引號、換行都得包起來，否則欄位在 Excel 裡會錯位。
+        private static string CsvCell(string text)
+        {
+            text = text ?? "";
+            return text.IndexOfAny(new[] { ',', '"', '\r', '\n' }) >= 0
+                 ? "\"" + text.Replace("\"", "\"\"") + "\""
+                 : text;
+        }
+
+        #endregion
+
+        #region Frame helpers
+
+        // ===== 送包共用 helper =====
+        // 原本每送一個命令都要手工重複「組 core → 算 SumZero → 補一個 byte → Write → Sleep」，
+        // 這裡收斂成一處，新增命令只要一行。
+
+        // 組上 SumZero 後送出。core 不含檢查碼。
+        private void SendFrame(byte[] core, int waitMs)
+        {
+            if (!serialPort1.IsOpen) return;
+
+            serialPort1.DiscardInBuffer();
+            receiveBuffer.Clear();
+
+            byte[] frame = new byte[core.Length + 1];
+            Array.Copy(core, frame, core.Length);
+            frame[core.Length] = new SumZeroCalculator().CalculateSumZero(core);
+
+            serialPort1.Write(frame, 0, frame.Length);
+            if (waitMs > 0) Thread.Sleep(waitMs);
+        }
+
+        // 無參數命令：{ 0x49, 0x01, cmd, SumZero }
+        private void SendCaliCmd(byte cmd, int waitMs)
+        {
+            SendFrame(new byte[] { 0x49, 0x01, cmd }, waitMs);
+        }
+
+        // Generate Calibration Value 產生的數字是用 InvariantCulture 格式化的，但手動輸入的
+        // 欄位可能是照使用者地區設定打的。先試 Invariant，再退回目前地區，兩種都收。
+        private static bool TryParseFloatFlexible(string text, out float value)
+        {
+            if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+                return true;
+            return float.TryParse(text, out value);
+        }
+
+        // 定點參數命令：{ 0x49, 0x05, cmd, MSB..LSB, SumZero }，值 = text * scale 取整。
+        // 給 WRITE_xx_CALI_P1 這類三點校正命令使用（V*1000 / I*128000 / P*1000）。
+        private void SendCaliWrite(byte cmd, string text, float scale, int waitMs = 200)
+        {
+            TryParseFloatFlexible(text, out float v);
+            int iv = Convert.ToInt32(v * scale);
+            SendFrame(new byte[] { 0x49, 0x05, cmd,
+                (byte)((iv >> 24) & 0xFF), (byte)((iv >> 16) & 0xFF),
+                (byte)((iv >>  8) & 0xFF), (byte)(iv & 0xFF) }, waitMs);
+        }
+
+        // float → big-endian 4 bytes（IEEE754 原始位元樣式）
+        private static byte[] FloatToBigEndianBytes(float value)
+        {
+            byte[] b = BitConverter.GetBytes(value);   // x86 為 little-endian
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(b);
+            return b;
+        }
+
+        // 浮點參數命令：4 個 byte 直接是 float 的位元樣式，不做定點縮放。
+        // 補償參數專用 —— 這些值有負數、且輕載係數需要遠高於定點所能表示的精度。
+        private void SendCompWrite(byte cmd, string text)
+        {
+            TryParseFloatFlexible(text, out float v);
+            byte[] b = FloatToBigEndianBytes(v);
+            SendFrame(new byte[] { 0x49, 0x05, cmd, b[0], b[1], b[2], b[3] }, 200);
+        }
+
+        #endregion
+
+        #region Compensation parameters (see NADC24_CMD.h)
+
+        // 這些常數必須與韌體的 NADC24_CMD.h 一致。
+        // 注意 0xB0~0xBF 保留給 WT310E1 四點校正韌體，本工具不得使用。
+        private const byte CMD_WRITE_LL_I_COMP      = 0xA1;
+        private const byte CMD_WRITE_HL_P_COMP      = 0xA5;
+        private const byte CMD_WRITE_DC_P_COMP      = 0xA7;
+        private const byte CMD_WRITE_DC_I_COMP      = 0xA9;
+        private const byte CMD_WRITE_LL_R_VDROP     = 0xAB;
+        private const byte CMD_WRITE_HL_R_VDROP     = 0xAD;
+        private const byte CMD_WRITE_DC_R_VDROP     = 0xAF;
+        private const byte CMD_WRITE_HL_I_LIGHT_P1  = 0xC1;
+        private const byte CMD_WRITE_HL_I_LIGHT_P2  = 0xC3;
+        private const byte CMD_WRITE_HL_I_LIGHT_P3  = 0xC5;
+        private const byte CMD_WRITE_HL_I_LIGHT_P4  = 0xC7;
+        private const byte CMD_WRITE_HL_I_LIGHT_P5  = 0xC9;
+        private const byte CMD_SAVE_COMP_PARA       = 0xCB;
+
+        // 50Hz 那一組（上面除了 DC_* 以外都是 60Hz 那一組）
+        private const byte CMD_WRITE_LL_I_COMP_50HZ     = 0xD1;
+        private const byte CMD_WRITE_HL_P_COMP_50HZ     = 0xD3;
+        private const byte CMD_WRITE_LL_R_VDROP_50HZ    = 0xD5;
+        private const byte CMD_WRITE_HL_R_VDROP_50HZ    = 0xD7;
+        private const byte CMD_WRITE_HL_I_LIGHT_P1_50HZ = 0xD9;
+        private const byte CMD_WRITE_HL_I_LIGHT_P2_50HZ = 0xDB;
+        private const byte CMD_WRITE_HL_I_LIGHT_P3_50HZ = 0xDD;
+        private const byte CMD_WRITE_HL_I_LIGHT_P4_50HZ = 0xDF;
+        private const byte CMD_WRITE_HL_I_LIGHT_P5_50HZ = 0xE1;
+
+        // READ 碼一律是對應 WRITE 碼減 1（偶數 READ / 奇數 WRITE）
+        private static byte ReadCmdOf(byte writeCmd) => (byte)(writeCmd - 1);
+
+        // 一個補償參數：命令碼 + 對應的輸入框 + 顯示名稱
+        private struct CompParam
+        {
+            public readonly byte WriteCmd;
+            public readonly TextBox Box;
+            public readonly string Name;
+            public CompParam(byte writeCmd, TextBox box, string name)
+            {
+                WriteCmd = writeCmd; Box = box; Name = name;
+            }
+        }
+
+        private List<CompParam> CompParams()
+        {
+            return new List<CompParam>();
+        }
+
+        // 送出所有「已填值」的補償參數，最後用 SAVE_COMP_PARA 一次寫入 Flash。
+        // 空白欄位會跳過而不是送 0 —— 只跑了三種線別其中一種時，其他線別的
+        // 參數應該保留韌體裡原本的值，不能被歸零蓋掉。
+        private void send_comp_btn_Click(object sender, EventArgs e)
+        {
+            if (!serialPort1.IsOpen)
+            {
+                SetStatus(StatusLevel.Warn, "Send Compensation: serial port is not open.");
+                return;
+            }
+
+            var sent = new List<string>();
+            var skipped = new List<string>();
+            var invalid = new List<string>();
+
+            foreach (var p in CompParams())
+            {
+                string text = p.Box.Text.Trim();
+                if (string.IsNullOrEmpty(text)) { skipped.Add(p.Name); continue; }
+
+                if (!TryParseFloatFlexible(text, out float v))
+                {
+                    invalid.Add($"{p.Name} = \"{text}\"");
+                    continue;
+                }
+
+                SendCompWrite(p.WriteCmd, text);
+                sent.Add($"  0x{p.WriteCmd:X2}  {p.Name} = {v.ToString("G9", CultureInfo.InvariantCulture)}");
+            }
+
+            if (invalid.Count > 0)
+            {
+                SetStatus(StatusLevel.Error,
+                          "Send Compensation: these fields are not valid numbers, nothing was saved - "
+                          + string.Join(", ", invalid));
+                return;
+            }
+
+            if (sent.Count == 0)
+            {
+                SetStatus(StatusLevel.Warn, "Send Compensation: no value to send - generate them first.");
+                return;
+            }
+
+            // 每個 WRITE 只改 MCU 的 RAM，這一步才真正燒進 Flash（獨立頁，一次抹寫）
+            SendCaliCmd(CMD_SAVE_COMP_PARA, 500);
+
+            // 每個參數的位址與數值明細留在 Output 視窗，狀態列只放結果摘要。
+            string detail = string.Join("\r\n", sent);
+            if (skipped.Count > 0)
+                detail += "\r\n  Skipped (empty, kept as-is in the MCU): " + string.Join(", ", skipped);
+
+            string summary = $"Compensation saved to Flash - {sent.Count} value(s) sent";
+            if (skipped.Count > 0) summary += $", {skipped.Count} skipped";
+
+            SetStatus(StatusLevel.Info, summary + ".", detail);
+        }
+
+        // 同步請求/回應：暫時卸下 DataReceived，直接讀回應。
+        // 這樣不必動到既有的 targetTextBox / expectedLength 非同步狀態機。
+        private bool TryReadCompValue(byte writeCmd, out float value)
+        {
+            value = 0f;
+            if (!serialPort1.IsOpen) return false;
+
+            serialPort1.DataReceived -= new SerialDataReceivedEventHandler(DataReceivedHandler);
+            int oldTimeout = serialPort1.ReadTimeout;
+            try
+            {
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();
+
+                byte cmd = ReadCmdOf(writeCmd);
+                byte[] core = { 0x49, 0x01, cmd };
+                byte[] frame = { 0x49, 0x01, cmd, new SumZeroCalculator().CalculateSumZero(core) };
+                serialPort1.Write(frame, 0, frame.Length);
+
+                // 回應為 7 bytes：{ 0x49, 0x04, B3, B2, B1, B0, SumZero }
+                serialPort1.ReadTimeout = 1000;
+                byte[] buf = new byte[7];
+                int got = 0;
+                while (got < buf.Length)
+                {
+                    int n = serialPort1.Read(buf, got, buf.Length - got);
+                    if (n <= 0) break;
+                    got += n;
+                }
+
+                if (got < buf.Length || buf[0] != 0x49 || buf[1] != 0x04) return false;
+
+                uint bits = (uint)(buf[2] << 24 | buf[3] << 16 | buf[4] << 8 | buf[5]);
+                value = BitConverter.ToSingle(BitConverter.GetBytes(bits), 0);
+                return true;
+            }
+            catch (TimeoutException) { return false; }
+            catch (Exception ex) { Console.WriteLine("TryReadCompValue: " + ex.Message); return false; }
+            finally
+            {
+                try { serialPort1.ReadTimeout = oldTimeout; } catch { }
+                serialPort1.DataReceived += new SerialDataReceivedEventHandler(DataReceivedHandler);
+            }
+        }
+
+        // 把 MCU 目前生效的補償值讀回填入欄位，用來驗證存檔與重開機後是否一致。
+        private void read_comp_btn_Click(object sender, EventArgs e)
+        {
+            if (!serialPort1.IsOpen)
+            {
+                SetStatus(StatusLevel.Warn, "Read Compensation: serial port is not open.");
+                return;
+            }
+
+            var lines = new List<string>();
+            var failed = new List<string>();
+
+            foreach (var p in CompParams())
+            {
+                if (TryReadCompValue(p.WriteCmd, out float v))
+                {
+                    p.Box.Text = v.ToString("F6", CultureInfo.InvariantCulture);
+                    lines.Add($"  0x{ReadCmdOf(p.WriteCmd):X2}  {p.Name} = {v.ToString("G9", CultureInfo.InvariantCulture)}");
+                }
+                else
+                {
+                    failed.Add($"  {p.Name}");
+                }
+            }
+
+            // 讀回來的每一筆數值留在 Output 視窗，狀態列只放「讀到幾筆 / 共幾筆」。
+            string detail = string.Join("\r\n", lines);
+            if (failed.Count > 0)
+                detail += "\r\n  No response for:" + string.Join(",", failed);
+
+            string summary = $"Compensation read back - {lines.Count}/{CompParams().Count} value(s)";
+            if (failed.Count > 0) summary += $", {failed.Count} no response";
+
+            SetStatus(failed.Count > 0 ? StatusLevel.Warn : StatusLevel.Info, summary + ".", detail);
+        }
+
+        #endregion
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            Task.Run(serialLoad);
+
+            //this.vth_order_box.Text = "1";
+            //this.ith_order_box.Text = "1";
+
+            /*
+            this.cali_v1_box.Text = "232.8309";
+            this.cali_i1_box.Text = "0.350387";
+            this.cali_p1_box.Text = "69.50793";
+
+            this.cali_v2_box.Text = "232.6768";
+            this.cali_i2_box.Text = "1.797165";
+            this.cali_p2_box.Text = "412.9108";
+
+            this.cali_v3_box.Text = "233.0053";
+            this.cali_i3_box.Text = "3.638794";
+            this.cali_p3_box.Text = "841.5959";
+
+            this.cali_v4_box.Text = "233.4083";
+            this.cali_i4_box.Text = "5.044907";
+            this.cali_p4_box.Text = "1171.313";
+            */
+
+            // Set default text values for input fields
+            curr_100p_box.Text = "65.6";
+            delay_sec_box.Text = "20";
+            repeat_box.Text = "1";
+
+            // Initialize the random number generator
+            //random = new Random();
+
+            // Create chart Series for the curves
+            series1 = new Series();
+            series1.ChartType = SeriesChartType.Line;
+            series1.BorderWidth = 3;
+            series1.Color = Color.FromArgb(255, 40, 53, 118);
+            chart1.Series.Add(series1);
+
+            series2 = new Series();
+            series2.ChartType = SeriesChartType.Line;
+            series2.BorderWidth = 3;
+            series2.Color = Color.FromArgb(255, 2, 97, 97);
+            chart2.Series.Add(series2);
+
+            series3 = new Series();
+            series3.ChartType = SeriesChartType.Line;
+            series3.BorderWidth = 3;
+            series3.Color = Color.FromArgb(255, 115, 73, 48);
+            chart3.Series.Add(series3);
+
+            // Create a Timer that triggers every 100 milliseconds
+            timer = new System.Windows.Forms.Timer();
+            timer.Interval = 100;
+            timer.Tick += Timer_Tick;
+
+            // Initialize Chart1
+            series1.Points.AddXY(xValue1, vrms_float);
+
+            // Set X-axis range to show the latest 100 data points
+            chart1.ChartAreas[0].AxisX.Minimum = xValue1 - 400;
+            chart1.ChartAreas[0].AxisX.Maximum = xValue1;
+
+            chart1.ChartAreas[0].AxisY.Minimum = Double.NaN;
+            chart1.ChartAreas[0].AxisY.Maximum = Double.NaN;
+            chart1.ChartAreas[0].AxisY.IsStartedFromZero = false;
+
+            // Initialize Chart2
+            series2.Points.AddXY(xValue2, irms_float);
+
+            chart2.ChartAreas[0].AxisX.Minimum = xValue2 - 400;
+            chart2.ChartAreas[0].AxisX.Maximum = xValue2;
+
+            chart2.ChartAreas[0].AxisY.Minimum = Double.NaN;
+            chart2.ChartAreas[0].AxisY.Maximum = Double.NaN;
+            chart2.ChartAreas[0].AxisY.IsStartedFromZero = false;
+
+            // Initialize Chart3
+            series3.Points.AddXY(xValue3, power_float);
+
+            chart3.ChartAreas[0].AxisX.Minimum = xValue3 - 400;
+            chart3.ChartAreas[0].AxisX.Maximum = xValue3;
+
+            chart3.ChartAreas[0].AxisY.Minimum = Double.NaN;
+            chart3.ChartAreas[0].AxisY.Maximum = Double.NaN;
+            chart3.ChartAreas[0].AxisY.IsStartedFromZero = false;
+
+            // Refresh all charts
+            chart1.Refresh();
+            chart2.Refresh();
+            chart3.Refresh();
+        }
+
+        // 從顯示名稱取回真正的埠名："Silico..(COM11)" → "COM11"。
+        // port_cbb 現在顯示的是友善名稱，開埠前一定要先過這一層。
+        private string parsePortName(string displayName)
+        {
+            if (string.IsNullOrEmpty(displayName))
+                return displayName;
+
+            var match = System.Text.RegularExpressions.Regex.Match(displayName, @"COM\d+", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return match.Value.ToUpper();
+            }
+            return displayName;
+        }
+
+        // 把 WMI 的裝置全名縮短成下拉塞得下的長度：
+        // "Silicon Labs CP210x USB to UART Bridge (COM11)" → "Silico..(COM11)"
+        private string FormatPortName(string caption)
+        {
+            if (string.IsNullOrEmpty(caption))
+                return caption;
+
+            int comIndex = caption.LastIndexOf("(COM", StringComparison.OrdinalIgnoreCase);
+            if (comIndex > 0)
+            {
+                string devName = caption.Substring(0, comIndex).Trim();
+                string comPart = caption.Substring(comIndex).Trim(); // e.g., "(COM11)"
+
+                StringBuilder sb = new StringBuilder();
+                foreach (char c in devName)
+                {
+                    if (char.IsLetterOrDigit(c))
+                    {
+                        sb.Append(c);
+                        if (sb.Length == 6)
+                            break;
+                    }
+                }
+
+                string prefix = sb.ToString();
+                if (prefix.Length == 0)
+                {
+                    prefix = devName.Length > 6 ? devName.Substring(0, 6) : devName;
+                }
+
+                if (devName.Length > sb.Length)
+                {
+                    prefix += "..";
+                }
+
+                return prefix + comPart;
+            }
+            return caption;
+        }
+
+        // COM 埠掃描：登錄檔列出實際存在的埠，再用 WMI 補上裝置友善名稱。
+        // 整段跑在背景執行緒，WMI 查詢可能要一兩秒，放前景會讓視窗假死。
+        private void serialLoad()
+        {
+            if (InvokeRequired) { Invoke((Action)serialLoad); return; }
+            port_cbb.Items.Clear();
+
+            Task.Run(() =>
+            {
+                var activePorts = new List<string>();
+                try
+                {
+                    using (RegistryKey keyCom = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DeviceMap\SerialComm"))
+                    {
+                        if (keyCom != null)
+                        {
+                            foreach (var sValue in keyCom.GetValueNames())
+                            {
+                                string portName = (string)keyCom.GetValue(sValue);
+                                if (!string.IsNullOrEmpty(portName))
+                                    activePorts.Add(portName);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine($"Registry scan error: {ex.Message}"); }
+
+                var portFriendlyNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    using (var searcher = new ManagementObjectSearcher("SELECT Caption FROM Win32_PnPEntity WHERE Caption LIKE '%(COM%'"))
+                    {
+                        foreach (var mObj in searcher.Get())
+                        {
+                            string caption = mObj["Caption"]?.ToString();
+                            if (!string.IsNullOrEmpty(caption))
+                            {
+                                string comPort = parsePortName(caption);
+                                if (!string.IsNullOrEmpty(comPort) && !portFriendlyNames.ContainsKey(comPort))
+                                    portFriendlyNames[comPort] = FormatPortName(caption);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine($"WMI scan error: {ex.Message}"); }
+
+                Invoke((Action)(() =>
+                {
+                    port_cbb.Items.Clear();
+                    foreach (string port in activePorts)
+                    {
+                        if (portFriendlyNames.TryGetValue(port, out string displayName))
+                            port_cbb.Items.Add(displayName);
+                        else
+                            port_cbb.Items.Add(port);
+                    }
+                    if (port_cbb.Items.Count > 0)
+                        port_cbb.SelectedIndex = 0;
+                }));
+            });
+        }
+
+        // 下拉項目：顯示友善名稱，實際使用 Address。
+        private class VisaDevice
+        {
+            public string Address { get; }
+            public string DisplayName { get; }
+            public VisaDevice(string address, string displayName = null)
+            {
+                Address = address;
+                DisplayName = displayName ?? address;
+            }
+            public override string ToString() => DisplayName;
+        }
+
+        private string QueryIdn(NationalInstruments.Visa.ResourceManager rm, string resource)
+        {
+            try
+            {
+                using (var session = (MessageBasedSession)rm.Open(resource))
+                {
+                    session.TimeoutMilliseconds = 2000;
+                    session.RawIO.Write("*IDN?\n");
+                    return session.RawIO.ReadString().Trim();
+                }
+            }
+            catch { return null; }
+        }
+
+        private void RestoreComboSelection(ComboBox cbb, string address)
+        {
+            if (string.IsNullOrEmpty(address)) { if (cbb.Items.Count > 0) cbb.SelectedIndex = 0; return; }
+            var match = cbb.Items.Cast<VisaDevice>().FirstOrDefault(d => d.Address == address);
+            if (match != null) cbb.SelectedItem = match;
+            else if (cbb.Items.Count > 0) cbb.SelectedIndex = 0;
+        }
+
+        // 掃描後的選取：優先選中「這次實際掃到」的裝置，而不是死掉的預設項。
+        //  1. 上次選的若本次仍有掃到 → 保留（尊重使用者手動選擇）
+        //  2. 否則選第一個實際掃到的裝置
+        //  3. 都沒掃到 → 退回舊行為（RestoreComboSelection：上次選擇或第一項）
+        private void SelectPreferFound(ComboBox cbb, string prevAddr, List<string> foundAddrs)
+        {
+            var items = cbb.Items.Cast<VisaDevice>().ToList();
+            if (!string.IsNullOrEmpty(prevAddr) && foundAddrs.Contains(prevAddr))
+            {
+                var keep = items.FirstOrDefault(d => d.Address == prevAddr);
+                if (keep != null) { cbb.SelectedItem = keep; return; }
+            }
+            foreach (var addr in foundAddrs)
+            {
+                var m = items.FirstOrDefault(d => d.Address == addr);
+                if (m != null) { cbb.SelectedItem = m; return; }
+            }
+            RestoreComboSelection(cbb, prevAddr);
+        }
+
+        // 加入裝置到下拉；若已存在同位址，就「升級」成帶 *IDN? 友善名稱的那筆，
+        // 避免掃到實體儀器卻只顯示原始位址、看起來像沒找到。
+        private void AddOrUpgradeDevice(ComboBox cbb, VisaDevice device)
+        {
+            for (int i = 0; i < cbb.Items.Count; i++)
+            {
+                if (cbb.Items[i] is VisaDevice d && d.Address == device.Address)
+                {
+                    if (device.DisplayName != device.Address) cbb.Items[i] = device;
+                    return;
+                }
+            }
+            cbb.Items.Add(device);
+        }
+
+        // ===== 儀器型號前綴清單：未來新增機種只要在這裡各加一行（大寫）=====
+        //   例：新負載 64xxx → 在 DcLoadModelPrefixes 加 "64"
+        //       新功率計 67xxx → 在 PowerMeterModelPrefixes 加 "67"
+        //   認不出的型號會走 fallback（兩邊下拉都列），不會遺失，人工仍可挑選。
+        private static readonly string[] DcLoadModelPrefixes     = { "63" };            // Chroma 電子負載家族
+        private static readonly string[] PowerMeterModelPrefixes = { "66", "WT" };      // Chroma 功率計 / Yokogawa WT
+        // 已知 USB PID（IDN 讀不到、或型號前綴沒命中時的備援，無條件檢查）
+        private static readonly string[] DcLoadUsbPids           = { "0X0879", "0X0884" };   // Chroma 632xx 負載（0884 為實機量到）
+        private static readonly string[] PowerMeterUsbPids       = { "0X0835", "0X087D" };   // Chroma 662xx 功率計（087D = 66205 實機）
+
+        // 從 *IDN? 取出「型號」欄位（第 2 個逗號欄位）。
+        // Chroma 例: "Chroma ATE,63202,SN,VER" → "63202"；Yokogawa 例: "YOKOGAWA,WT310,..." → "WT310"
+        // 只比對這個欄位、不對整串做子字串搜尋，避免序號裡剛好有 63/66 而誤判。
+        private string InstrModel(string idn)
+        {
+            if (string.IsNullOrEmpty(idn)) return "";
+            var parts = idn.Split(',');
+            return parts.Length >= 2 ? parts[1].Trim().ToUpperInvariant() : "";
+        }
+
+        private static bool MatchesPrefix(string model, string[] prefixes)
+        {
+            if (string.IsNullOrEmpty(model)) return false;
+            foreach (var p in prefixes) if (model.StartsWith(p)) return true;
+            return false;
+        }
+
+        private static bool ResourceHasAnyPid(string resource, string[] pids)
+        {
+            string r = (resource ?? "").ToUpperInvariant();
+            foreach (var p in pids) if (r.Contains(p)) return true;
+            return false;
+        }
+
+        // 電子負載：型號前綴命中 DcLoadModelPrefixes，或 USB PID 命中 DcLoadUsbPids。
+        private bool IsDcLoadDevice(string resource, string idn)
+        {
+            if (MatchesPrefix(InstrModel(idn), DcLoadModelPrefixes)) return true;
+            if (ResourceHasAnyPid(resource, DcLoadUsbPids)) return true;
+            return false;
+        }
+
+        // 功率計：型號前綴命中 PowerMeterModelPrefixes、Yokogawa、或 USB PID 命中 PowerMeterUsbPids。
+        private bool IsPowerMeterDevice(string resource, string idn)
+        {
+            if (MatchesPrefix(InstrModel(idn), PowerMeterModelPrefixes)) return true;
+            if ((idn ?? "").ToUpperInvariant().Contains("YOKOGAWA")) return true;
+            if (ResourceHasAnyPid(resource, PowerMeterUsbPids)) return true;
+            return false;
+        }
+
+        // 掃描 USB VISA 儀器，依型別分別填入 DC Load / Power Meter 兩個下拉。
+        private void scanVisaDevices()
+        {
+            try
+            {
+                // 重新掃描會清空並重填下拉，先斷線避免 session 與選取項對不起來
+                if (VisaConnected) DisconnectVisa(quiet: true);
+                UpdateVisaUi();
+
+                string currentDcLoad = (dc_load_cbb.SelectedItem as VisaDevice)?.Address ?? dc_load_cbb.Text;
+                string currentPowerMeter = (power_meter_cbb.SelectedItem as VisaDevice)?.Address ?? power_meter_cbb.Text;
+
+                dc_load_cbb.Items.Clear();
+                power_meter_cbb.Items.Clear();
+
+                // 這次掃描「實際列舉到」的裝置位址（用來優先選中真的有接的儀器）
+                var foundDcLoads = new List<string>();
+                var foundPowerMeters = new List<string>();
+                try
+                {
+                    using (var rm = new NationalInstruments.Visa.ResourceManager())
+                    {
+                        var resources = rm.Find("USB?*INSTR");
+                        foreach (string resource in resources)
+                        {
+                            string idn = QueryIdn(rm, resource);
+                            string displayName = resource;
+                            if (!string.IsNullOrEmpty(idn))
+                            {
+                                var parts = idn.Split(',');
+                                if (parts.Length >= 2)
+                                    displayName = $"{parts[0].Trim()} {parts[1].Trim()} ({resource})";
+                            }
+                            var device = new VisaDevice(resource, displayName);
+
+                            // 依 USB PID / IDN 型號判斷裝置型別，只把裝置放進對應的下拉：
+                            //  - Chroma DC load  → PID 0x0879 → 只加到 dc_load_cbb
+                            //  - 功率計(Chroma 66xxx PID 0x0835 / Yokogawa) → 只加到 power_meter_cbb
+                            //  - 無法判別 → 兩邊都加，讓使用者自選
+                            bool isDcLoad = IsDcLoadDevice(resource, idn);
+                            bool isPowerMeter = IsPowerMeterDevice(resource, idn);
+                            if (!isDcLoad && !isPowerMeter) { isDcLoad = true; isPowerMeter = true; }
+
+                            if (isDcLoad) { AddOrUpgradeDevice(dc_load_cbb, device); foundDcLoads.Add(resource); }
+                            if (isPowerMeter) { AddOrUpgradeDevice(power_meter_cbb, device); foundPowerMeters.Add(resource); }
+                        }
+                    }
+                    SetStatus(StatusLevel.Info, "VISA scan complete.");
+                }
+                catch (Exception ex) when (
+                    ex is DllNotFoundException ||
+                    ex is TypeInitializationException ||
+                    ex is BadImageFormatException)
+                {
+                    SetStatus(StatusLevel.Warn, "NI-VISA driver not installed - USB scan skipped.");
+                    Console.WriteLine("NI-VISA not available: " + ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    SetStatus(StatusLevel.Warn, "No USB VISA instruments found.");
+                    Console.WriteLine("VISA scan: " + ex.Message);
+                }
+
+                SelectPreferFound(dc_load_cbb, currentDcLoad, foundDcLoads);
+                SelectPreferFound(power_meter_cbb, currentPowerMeter, foundPowerMeters);
+            }
+            catch (Exception ex)
+            {
+                SetStatus(StatusLevel.Error, "VISA scan failed.");
+                Console.WriteLine("scanVisaDevices error: " + ex.Message);
+            }
+        }
+
+        private void rescan_port_btn_Click(object sender, EventArgs e)
+        {
+            serialLoad();
+        }
+
+        private void scan_visa_btn_Click(object sender, EventArgs e)
+        {
+            scanVisaDevices();
+        }
+
+        // ===== VISA 常駐連線 =====
+        // 原本每個量測動作都自己 new ResourceManager() 再 Open()/Dispose() 一次，
+        // 等於每按一顆按鈕就重連一次儀器，Scan 完也沒有明確的「已連線」狀態。
+        // 改成：Scan 只負責列舉裝置，按下 Connect 才開啟常駐 session，
+        // 按下 Disconnect 一次關閉所有連線。
+        private NationalInstruments.Visa.ResourceManager visaRm;
+        private MessageBasedSession dcLoadSession;
+        private MessageBasedSession powerMeterSession;
+
+        // DC Load 與 Power Meter 若指到同一個位址就共用同一個 session
+        //（同一個 USB 資源開兩個 session 會被鎖住），Dispose 時也只能放一次。
+        private bool visaSharedSession = false;
+
+        private const int VisaTimeoutMs = 5000;
+
+        private bool VisaConnected => visaRm != null;
+
+        private void visa_connect_btn_Click(object sender, EventArgs e)
+        {
+            if (VisaConnected) DisconnectVisa();
+            else ConnectVisa();
+        }
+
+        private void ConnectVisa()
+        {
+            string dcLoadAddr = DC_Load63202A_Address;
+            string powerMeterAddr = PowerMeter66202_Address;
+
+            if (string.IsNullOrEmpty(dcLoadAddr) && string.IsNullOrEmpty(powerMeterAddr))
+            {
+                SetStatus(StatusLevel.Error, "No VISA address selected - press \"Scan Devices\" first.");
+                return;
+            }
+
+            string opening = null;      // 失敗時用來指出是哪一台開不起來
+            try
+            {
+                visaRm = new NationalInstruments.Visa.ResourceManager();
+
+                if (!string.IsNullOrEmpty(dcLoadAddr))
+                {
+                    opening = "DC Load";
+                    dcLoadSession = OpenVisaSession(dcLoadAddr);
+                }
+
+                if (!string.IsNullOrEmpty(powerMeterAddr))
+                {
+                    opening = "Power Meter";
+                    if (powerMeterAddr == dcLoadAddr)
+                    {
+                        powerMeterSession = dcLoadSession;
+                        visaSharedSession = true;
+                    }
+                    else
+                    {
+                        powerMeterSession = OpenVisaSession(powerMeterAddr);
+                    }
+                }
+
+                UpdateVisaUi();
+                SetStatus(StatusLevel.Info, "VISA connected.");
+                ReportVisaIdentity(dcLoadAddr, powerMeterAddr);
+
+                // 連線當下就把負載的命令族探測完，結果印在 Output 視窗。
+                // 這樣「這台被認成哪一族」現場立刻看得到，
+                // 而不是等按下 RMS Value 跑完一整輪才發現負載從頭到尾沒有反應。
+                if (dcLoadSession != null) EnsureDcLoadCommands();
+            }
+            catch (Exception ex)
+            {
+                // 開到一半失敗就全部收乾淨，不留半開狀態（下次 Connect 才不會撞到殘留 handle）
+                DisconnectVisa(quiet: true);
+                SetStatus(StatusLevel.Error, $"Cannot connect {opening} - {ex.Message}");
+            }
+        }
+
+        // Connect 當下就對兩個 session 各問一次 *IDN?，理由有二：
+        //  1. 立刻證明 USB 鏈路真的活著 —— 不必等到按下量測鈕才吃到 IOTimeoutException，
+        //     那時候已經分不清是「一開始就沒通」還是「量測途中才斷」。
+        //  2. 立刻抓出「兩個下拉選到同一台」—— scanVisaDevices 認不出型號時會把同一台
+        //     同時塞進兩個下拉(見 IsDcLoadDevice/IsPowerMeterDevice 的 fallback)，
+        //     ConnectVisa 又會讓兩者共用 session，結果 CURR:STAT:L1 被送到功率計上。
+        private void ReportVisaIdentity(string dcLoadAddr, string powerMeterAddr)
+        {
+            string dcIdn = SafeIdn(dcLoadSession);
+            string pmIdn = visaSharedSession ? dcIdn : SafeIdn(powerMeterSession);
+            powerMeterType = DetectMeterType(pmIdn);
+
+            Console.WriteLine($"VISA DC Load     [{dcLoadAddr}] : {dcIdn ?? "(no response)"}");
+            Console.WriteLine($"VISA Power Meter [{powerMeterAddr}] : {pmIdn ?? "(no response)"}");
+
+            var warn = new List<string>();
+            if (visaSharedSession)
+                warn.Add("DC Load and Power Meter point at the SAME address - every command goes to one instrument.");
+            if (dcLoadSession != null && dcIdn == null)
+                warn.Add("DC Load did not answer *IDN? - link is down or the instrument is busy.");
+            if (powerMeterSession != null && pmIdn == null)
+                warn.Add("Power Meter did not answer *IDN? - link is down or the instrument is busy.");
+
+            if (warn.Count == 0)
+            {
+                SetStatus(StatusLevel.Info, "VISA connected and verified.");
+                return;
+            }
+
+            SetStatus(StatusLevel.Warn,
+                      "VISA connected with warnings: " + string.Join(" ", warn),
+                      $"    DC Load     [{dcLoadAddr}]\r\n        {dcIdn ?? "(no response)"}\r\n" +
+                      $"    Power Meter [{powerMeterAddr}]\r\n        {pmIdn ?? "(no response)"}");
+        }
+
+        // 健檢用的 *IDN?：失敗回 null 而不往外拋 —— 這只是連線後的體檢，
+        // 不該讓 Connect 本身失敗（有些儀器開機初期會晚一點才回應）。
+        // 逾時另外壓到 2 秒，避免兩台都不通時 Connect 卡上 10 秒。
+        private string SafeIdn(MessageBasedSession session)
+        {
+            if (session == null) return null;
+            int oldTimeout = session.TimeoutMilliseconds;
+            try
+            {
+                session.TimeoutMilliseconds = 2000;
+                session.RawIO.Write("*IDN?\n");
+                return session.RawIO.ReadString().Trim();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("IDN health check failed: " + ex.Message);
+                return null;
+            }
+            finally
+            {
+                try { session.TimeoutMilliseconds = oldTimeout; } catch { }
+            }
+        }
+
+        private MessageBasedSession OpenVisaSession(string address)
+        {
+            var session = (MessageBasedSession)visaRm.Open(address);
+            session.TimeoutMilliseconds = VisaTimeoutMs;
+
+            // 以 LF 為結束字元，讓 ReadString() 讀到一行就返回，不必等到逾時。
+            // 少了這一步，每個查詢都得等滿 5 秒才拿得到結果 —— 探測命令族時尤其致命。
+            try
+            {
+                session.TerminationCharacter = 0x0A;
+                session.TerminationCharacterEnabled = true;
+            }
+            catch { /* 少數介面不支援設定終止字元，忽略即可 */ }
+
+            return session;
+        }
+
+        // 斷開所有 VISA 連線。quiet = true 用於連線失敗時的內部收尾，不覆蓋錯誤訊息。
+        private void DisconnectVisa(bool quiet = false)
+        {
+            // 共用 session 時只能 Dispose 一次，先把別名清掉
+            if (visaSharedSession) powerMeterSession = null;
+
+            try { dcLoadSession?.Dispose(); } catch { }
+            try { powerMeterSession?.Dispose(); } catch { }
+            try { visaRm?.Dispose(); } catch { }
+
+            dcLoadSession = null;
+            powerMeterSession = null;
+            visaRm = null;
+            visaSharedSession = false;
+
+            // 命令族是「這一台機器」的探測結果，斷線就作廢，
+            // 否則換一台負載重新連線時會沿用上一台的命令。
+            dcLoadCommands = null;
+            powerMeterType = MeterType.Unknown;
+
+            if (!quiet)
+            {
+                UpdateVisaUi();
+                SetStatus(StatusLevel.Info, "VISA disconnected.");
+            }
+        }
+
+        // 連線中鎖住下拉與 Scan，避免選項與實際開著的 session 不一致。
+        private void UpdateVisaUi()
+        {
+            bool connected = VisaConnected;
+            visa_connect_btn.Text = connected ? "Disconnect" : "Connect";
+            dc_load_cbb.Enabled = !connected;
+            power_meter_cbb.Enabled = !connected;
+            scan_visa_btn.Enabled = !connected;
+        }
+
+        // ===== 訊息輸出：一律走狀態列，不跳視窗 =====
+        // 量測進行中跳 MessageBox 會擋住畫面，而且非得有人按 OK 才會繼續 ——
+        // 現場一邊盯著儀器一邊按確認很干擾，長時間掃描更可能整晚卡在一個對話框上沒人發現。
+        // 改成：狀態列顯示壓成一行的摘要（依嚴重度上色），完整內容寫進 Output 視窗，
+        // 多行細節一個字都不會少。
+        private enum StatusLevel { Info, Warn, Error }
+
+        private void SetStatus(StatusLevel level, string summary, string detail = null)
+        {
+            // 序列埠的 DataReceived 是在背景執行緒跑的，從那裡碰控制項會丟
+            // InvalidOperationException。彈跳視窗沒有這個限制，改成狀態列就有了。
+            if (statusStrip1.InvokeRequired)
+            {
+                statusStrip1.BeginInvoke((Action)(() => SetStatus(level, summary, detail)));
+                return;
+            }
+
+            StatusLabel2.Text = FlattenForStatusBar(summary);
+            StatusLabel2.ForeColor =
+                level == StatusLevel.Error ? Color.Firebrick :
+                level == StatusLevel.Warn  ? Color.DarkOrange :
+                                             SystemColors.ControlText;
+
+            // 狀態列只有一行，長訊息會被視窗寬度切掉。滑鼠停在上面可以看到完整內容
+            // （含多行明細）—— 這是取代對話框之後，細節唯一還看得到的地方。
+            statusStrip1.ShowItemToolTips = true;
+            StatusLabel2.ToolTipText =
+                string.IsNullOrEmpty(detail) ? summary : summary + "\r\n" + detail;
+
+            // 掃描迴圈長時間佔著 UI 執行緒（VISA 讀取是阻塞的），
+            // 不主動重繪的話狀態列會停在舊字樣，看起來就像程式沒反應。
+            try { statusStrip1.Refresh(); } catch { }
+
+            Console.WriteLine($"[{level}] {summary}");
+            if (!string.IsNullOrEmpty(detail)) Console.WriteLine(detail);
+        }
+
+        // 狀態列只有一行：換行壓成 " | "，前後空白去掉，空行丟掉。
+        private static string FlattenForStatusBar(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+
+            return string.Join(" | ", text.Replace("\r\n", "\n")
+                                          .Replace('\r', '\n')
+                                          .Split('\n')
+                                          .Select(p => p.Trim())
+                                          .Where(p => p.Length > 0));
+        }
+
+        // 取用常駐 session；未連線就提示並回傳 null，呼叫端直接 return。
+        private MessageBasedSession RequireDcLoadSession()
+        {
+            if (dcLoadSession == null) ShowVisaNotConnected("DC Load");
+            return dcLoadSession;
+        }
+
+        private MessageBasedSession RequirePowerMeterSession()
+        {
+            if (powerMeterSession == null) ShowVisaNotConnected("Power Meter");
+            return powerMeterSession;
+        }
+
+        // ===== 功率計讀值：依 *IDN? 廠商切換命令集 =====
+        // Chroma 662xx 吃 MEAS:xxx?；Yokogawa WT310E 不支援 MEAS 這組命令（送了不回應，
+        // 只會等到逾時），必須先用 :NUMERIC:NORMAL:ITEM1 指定量測項目再讀 VALUE?。
+        // 移植自 v1_03_WT310E1 的 ReadVIP/QueryYokogawa。
+        private enum MeterType { Unknown, Chroma, Yokogawa }
+
+        // Connect 時由 ReportVisaIdentity 依 IDN 設定，斷線時歸零
+        private MeterType powerMeterType = MeterType.Unknown;
+
+        private static MeterType DetectMeterType(string idn)
+        {
+            string u = (idn ?? "").ToUpperInvariant();
+            if (u.Contains("YOKOGAWA")) return MeterType.Yokogawa;
+            if (u.Contains("CHROMA")) return MeterType.Chroma;
+            return MeterType.Unknown;
+        }
+
+        // 讀取功率計的 RMS 電壓、電流、實功率，回傳原始字串（各自以 '\n' 結尾），
+        // 呼叫端照舊自行顯示與解析 —— Chroma 路徑送的命令與舊流程完全相同。
+        // 失敗時 VisaException 往外拋，由呼叫端的 catch 顯示。
+        private void ReadPowerMeterRaw(MessageBasedSession session,
+                                       out string voltage, out string current, out string power)
+        {
+            // Connect 時 *IDN? 沒回應（開機初期常見）就在第一次讀值時補問
+            if (powerMeterType == MeterType.Unknown)
+            {
+                session.RawIO.Write("*IDN?\n");
+                string idn = session.RawIO.ReadString().Trim();
+                powerMeterType = DetectMeterType(idn);
+                Console.WriteLine($"Power Meter IDN: {idn} -> {powerMeterType}");
+            }
+
+            if (powerMeterType == MeterType.Yokogawa)
+            {
+                // 與 v1_03_WT310E1 實機驗證過的項目名稱相同
+                voltage = QueryYokogawa(session, "URMS");
+                current = QueryYokogawa(session, "IRMS");
+                power   = QueryYokogawa(session, "P");
+                return;
+            }
+
+            // Chroma（以及認不出廠牌時）維持原本的命令
+            session.RawIO.Write("MEAS:VOLT:RMS?\n");
+            voltage = session.RawIO.ReadString();
+            session.RawIO.Write("MEAS:CURR:RMS?\n");
+            current = session.RawIO.ReadString();
+            session.RawIO.Write("MEAS:POW:REAL?\n");
+            power = session.RawIO.ReadString();
+        }
+
+        // Yokogawa WT 系列：先把 ITEM1 指到要的量測功能（element 1），再讀 ITEM1 的值。
+        // 儀器回傳科學記號（如 "230.12E+00"），這裡轉成一般小數再交出去，
+        // 讓畫面顯示與 Chroma 一致（如 "230.12"）。
+        private static string QueryYokogawa(MessageBasedSession session, string function)
+        {
+            session.RawIO.Write($":NUMERIC:NORMAL:ITEM1 {function},1\n");
+            session.RawIO.Write(":NUMERIC:NORMAL:VALUE? 1\n");
+            string resp = session.RawIO.ReadString().Trim();
+
+            // 超量程 / 無資料時 WT 回 9.91E+37（或 NAN、INF），顯示成 "OL"。
+            // "OL" 解析不出數字 → 呼叫端拿到 0，誤差率那段會因為 != 0 判斷而跳過。
+            if (!double.TryParse(resp, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+                || double.IsNaN(v) || double.IsInfinity(v) || Math.Abs(v) >= 1e30)
+            {
+                Console.WriteLine($"Yokogawa {function}: over-range / no data ({resp})");
+                return "OL\n";
+            }
+
+            // 最多 6 位小數、去尾零、永不使用指數。電流 mA 等級（如 0.012345 A）也保得住有效位數。
+            return v.ToString("0.######", CultureInfo.InvariantCulture) + "\n";
+        }
+
+        private void ShowVisaNotConnected(string what)
+        {
+            SetStatus(StatusLevel.Error, $"{what} is not connected - select the instrument and press \"Connect\" first.");
+        }
+
+        // VISA 操作失敗時把真正的錯誤攤開。原本 5 個 catch 一律只顯示 "Confirm connection."，
+        // 連線中斷(VI_ERROR_CONN_LOST)、命令逾時(VI_ERROR_TMO)、資源被佔用(VI_ERROR_RSRC_BUSY)
+        // 現場全都長一樣，完全無從判斷是哪一台、哪一種失敗。
+        // 一併印出目前選到的兩個位址 —— 兩台若被選成同一個位址(共用 session)也能立刻看出來。
+        private void ShowVisaError(VisaException ex, string what)
+        {
+            string detail = $"{ex.GetType().Name}: {ex.Message}";
+
+            SetStatus(StatusLevel.Error,
+                      $"[{what}] VISA operation failed - {detail}",
+                      $"    DC Load     : {DC_Load63202A_Address}\r\n" +
+                      $"    Power Meter : {PowerMeter66202_Address}");
+        }
+
+
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                if ((!string.IsNullOrEmpty(cali_v2_box.Text)) && (!string.IsNullOrEmpty(cali_i2_box.Text)) && (!string.IsNullOrEmpty(cali_p2_box.Text))) // 如果 RichTextBox 的內容不為空
+                {
+                    // 更改按鈕的背景顏色
+                    point2_button.BackColor = SystemColors.Control;
+
+                    // 设置目标为 p1_vrms_box (15-byte averaged readback during capture)
+                    targetTextBox = "p1_vrms_box";
+                    expectedLength = 15;
+
+                    // High-Line 1-point calibration : Vrms / Irms / Pavg -> start -> save
+                    SendCaliWrite(0x41, cali_v2_box.Text, 1000.0f);      // WRITE_HL_CALI_P1_AC_V
+                    SendCaliWrite(0x43, cali_i2_box.Text, 128000.0f);    // WRITE_HL_CALI_P1_AC_I
+                    SendCaliWrite(0x45, cali_p2_box.Text, 1000.0f);      // WRITE_HL_CALI_P1_AC_P
+                    SendCaliCmd(0x47, 4000);                             // START_HL_CALI_P1 (average raw)
+                    SendCaliCmd(0x49, 200);                              // SAVE_HL_CALI_P1
+
+                    // 恢复19字节接收模式
+                    expectedLength = 19;
+
+                    // 更改按鈕的背景顏色
+                    point2_button.BackColor = Color.LightBlue;
+
+                    // Read status
+                    //byte[] myBytes9 = { 0x49, 0x01, 0x85, 0x31  };
+                    //serialPort1.Write(myBytes9, 0, myBytes9.Length); 
+                    //Thread.Sleep(100);  // Delay 100ms
+
+                    /*
+                    // 从串口读取数据
+                    if (serialPort1.BytesToRead >= 4)
+                    {
+                        byte[] buffer = new byte[4];
+                        serialPort1.Read(buffer, 0, 4);
+
+                        // Debug
+                        //string result = BitConverter.ToString(buffer, 0, buffer.Length).Replace("-", " "); // 將讀取到的數據轉換為字串
+                        //Console.WriteLine(result);
+
+                        // 检查第一个字节为 0x49，第二个字节为 0x01
+                        if (buffer[0] == 0x49 && buffer[1] == 0x01)
+                        {
+                            Console.WriteLine("Status Value: 0x" + buffer[2].ToString("X2"));
+
+                            if (buffer[2] == 4)
+                                SetStatus(StatusLevel.Error, "Sum-Zero Error !");
+                        }
+                    }
+                    */
+                }
+            }
+        }
+        private void rts_chb_CheckedChanged(object sender, EventArgs e)
+        {
+            /*
+            if (rts_chb.CheckState == CheckState.Checked)
+            {
+                serialPort1.RtsEnable = true;
+            }
+            else
+            {
+                serialPort1.RtsEnable = false;
+            }
+            */
+        }
+
+        private void dtr_chb_CheckedChanged(object sender, EventArgs e)
+        {
+            /*
+            if (dtr_chb.CheckState == CheckState.Checked)
+            {
+                serialPort1.DtrEnable = true;
+            }
+            else
+            {
+                serialPort1.DtrEnable = false;
+            }
+            */
+        }
+
+        private void sendData()
+        {
+            serialPort1.Write(sendBuffer.ToArray(), 0, sendBuffer.Count);
+            //sendCount += sendBuffer.Count;
+            //sencount_tssl.Text = sendCount.ToString();
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear the RichTextBox control
+                chip_ssid_box.Clear();
+
+                // Clear data from serial receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid data frame
+
+                // Send stop command
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target to chip_ssid_box
+                targetTextBox = "chip_ssid_box";
+                expectedLength = 4;
+
+                // Send command to read SSID
+                byte[] myBytes = { 0x49, 0x01, 0x10, 0xA6 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear the RichTextBox control
+                fw_ver_box.Clear();
+
+                // Clear data from serial receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid data frame
+
+                // Send stop command
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target to fw_ver_box
+                targetTextBox = "fw_ver_box";
+                expectedLength = 4;
+
+                // Send command to read firmware version
+                byte[] myBytes = { 0x49, 0x01, 0x12, 0xA4 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+        private void button7_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear the RichTextBox control
+                p3_vrms_box.Clear();
+
+                // Clear data from serial receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid data frame
+
+                // Send stop command
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target to p3_vrms_box
+                targetTextBox = "p3_vrms_box";
+                expectedLength = 7;
+
+                // Send command to read P3 voltage
+                byte[] myBytes = { 0x49, 0x01, 0x70, 0x46 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+        // 註 : 這個方法沒有被任何控制項掛接 (button2.Click 接的是 button2_Click_1)。
+        //      原本它的內容是一整段被 /* */ 註解掉的 auto-report 切換程式碼，但那個註解
+        //      區塊沒有正確收尾，把後面的 button9_Click (DC Igain 讀取) 整個吞了進去，
+        //      導致 "DC Igain" 旁的 Read 按鈕完全沒有處理函式、按了毫無反應。
+        //      已把 button9_Click 還原成正常方法，這裡保留空殼以免有其他地方參照。
+        private void button2_Click(object sender, EventArgs e)
+        {
+        }
+
+        // DC Igain : 讀回 DC-Mode 的電流增益 (READ_DC_I_RMS_G1)
+        private void button9_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // 清空 RichTextBox 控制元件內容
+                p3_irms_box.Clear();
+
+                // 停止自動回報，否則讀回值會混在 19-byte 自動回報資料流裡
+                SendCaliCmd(0x83, 200);          // STOP_MEASURING
+
+                // 设置目标为 p3_irms_box
+                targetTextBox = "p3_irms_box";
+                expectedLength = 7;
+
+                SendCaliCmd(0x72, 200);          // READ_DC_I_RMS_G1
+            }
+        }
+
+        private void button1_Click_1(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                try
+                {
+                    Excel.Application excelApp = new Excel.Application();
+                    Excel.Workbook workbook = excelApp.Workbooks.Add();
+                    Excel.Worksheet worksheet = workbook.ActiveSheet;
+
+                    // Write headers to worksheet
+                    worksheet.Cells[1, 1].Value = "Freq";
+                    worksheet.Cells[1, 2].Value = "Vrms";
+                    worksheet.Cells[1, 3].Value = "Irms";
+                    worksheet.Cells[1, 4].Value = "Pow";
+                    worksheet.Cells[1, 5].Value = "PF";
+                    worksheet.Cells[1, 6].Value = "VTHD";
+                    worksheet.Cells[1, 7].Value = "ITHD";
+
+                    for (int i = 0; i < 400; i++)
+                    {
+                        worksheet.Cells[i + 2, 1].Value = freq_curve_data[i];
+                        worksheet.Cells[i + 2, 2].Value = vrms_curve_data[i];
+                        worksheet.Cells[i + 2, 3].Value = irms_curve_data[i];
+                        worksheet.Cells[i + 2, 4].Value = powe_curve_data[i];
+                        worksheet.Cells[i + 2, 5].Value = pfva_curve_data[i];
+                        worksheet.Cells[i + 2, 6].Value = vthd_curve_data[i];
+                        worksheet.Cells[i + 2, 7].Value = ithd_curve_data[i];
+                    }
+
+                    // Get current time and format as file name
+                    string fileName = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
+                    // Get the directory path of the running application
+                    string currentDirectory = System.IO.Directory.GetCurrentDirectory();
+
+                    // Combine to full file path
+                    string filePath = System.IO.Path.Combine(currentDirectory, $"{fileName}.xlsx");
+
+                    // Save the Excel file
+                    workbook.SaveAs(filePath);
+
+                    // Close the workbook and Excel application
+                    workbook.Close();
+                    excelApp.Quit();
+
+                    // Release COM objects
+                    System.Runtime.InteropServices.Marshal.ReleaseComObject(worksheet);
+                    System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
+                    System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
+
+                    SetStatus(StatusLevel.Info, $"File saved successfully - {filePath}");
+                }
+                catch (Exception ex)
+                {
+                    // Handle exception
+                    SetStatus(StatusLevel.Error, "Failed to save file - " + ex.Message);
+                }
+            }
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear the RichTextBox control
+                p1_vrms_box.Clear();
+
+                // Clear the serial port receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid data frame
+
+                // Send stop command
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target as p1_vrms_box
+                targetTextBox = "p1_vrms_box";
+                expectedLength = 7;
+
+                // Send command
+                byte[] myBytes = { 0x49, 0x01, 0x30, 0x86 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+        private void button11_Click_1(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear the RichTextBox control
+                p1_irms_box.Clear();
+
+                // Clear the serial port receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid data frame
+
+                // Send stop command
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target as p1_irms_box
+                targetTextBox = "p1_irms_box";
+                expectedLength = 7;
+
+                // Send command
+                byte[] myBytes = { 0x49, 0x01, 0x32, 0x84 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+        private void button3_Click_1(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                if ((!string.IsNullOrEmpty(cali_v1_box.Text)) && (!string.IsNullOrEmpty(cali_i1_box.Text)) && (!string.IsNullOrEmpty(cali_p1_box.Text))) // If RichTextBox is not empty
+                {
+                    // Change button background color
+                    point1_button.BackColor = SystemColors.Control;
+
+                    // Set target to p1_vrms_box (15-byte averaged readback during capture)
+                    targetTextBox = "p1_vrms_box";
+                    expectedLength = 15;
+
+                    // Low-Line 1-point calibration : Vrms / Irms / Pavg -> start -> save
+                    SendCaliWrite(0x21, cali_v1_box.Text, 1000.0f);      // WRITE_LL_CALI_P1_AC_V
+                    SendCaliWrite(0x23, cali_i1_box.Text, 128000.0f);    // WRITE_LL_CALI_P1_AC_I
+                    SendCaliWrite(0x25, cali_p1_box.Text, 1000.0f);      // WRITE_LL_CALI_P1_AC_P
+                    SendCaliCmd(0x27, 4000);                             // START_LL_CALI_P1 (average raw)
+                    SendCaliCmd(0x29, 200);                              // SAVE_LL_CALI_P1
+
+                    // Restore 19-byte auto report mode
+                    expectedLength = 19;
+
+                    // Change button background color
+                    point1_button.BackColor = Color.LightBlue;
+                }
+            }
+        }
+
+        private void button2_Click_1(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear the RichTextBox control
+                p3_pavg_box.Clear();
+
+                // Clear serial port receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Clear the entire buffer and wait for the next valid frame
+
+                // Send stop command
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 100ms
+
+                // Set target as p3_pavg_box
+                targetTextBox = "p3_pavg_box";
+                expectedLength = 7;
+
+                // Send command to read power value
+                byte[] myBytes = { 0x49, 0x01, 0x74, 0x42 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 100ms
+            }
+        }
+
+        private void point4_button_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                if (!string.IsNullOrEmpty(cali_v3_box.Text) && !string.IsNullOrEmpty(cali_i3_box.Text) && !string.IsNullOrEmpty(cali_p3_box.Text)) // Check if input fields are not empty
+                {
+                    // Change button background color
+                    point3_button.BackColor = SystemColors.Control;
+
+                    targetTextBox = "p4_vrms_box";
+                    expectedLength = 15;
+
+                    // DC-Mode 1-point calibration : Vrms / Irms / Pavg -> start -> save
+                    SendCaliWrite(0x61, cali_v3_box.Text, 1000.0f);      // WRITE_DC_CALI_P1_AC_V
+                    SendCaliWrite(0x63, cali_i3_box.Text, 128000.0f);    // WRITE_DC_CALI_P1_AC_I
+                    SendCaliWrite(0x65, cali_p3_box.Text, 1000.0f);      // WRITE_DC_CALI_P1_AC_P
+                    SendCaliCmd(0x67, 4000);                             // START_DC_CALI_P1 (average raw)
+                    SendCaliCmd(0x69, 200);                              // SAVE_DC_CALI_P1
+
+                    // Restore 19-byte auto report mode
+                    expectedLength = 19;
+
+                    // Set button color to indicate done
+                    point3_button.BackColor = Color.LightBlue;
+                }
+            }
+        }
+
+        private void button6_Click_1(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear content in the target TextBox
+                p2_vrms_box.Clear();
+
+                // Clear serial port receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Wait for the next valid frame
+
+                // Send stop command 
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target TextBox name
+                targetTextBox = "p2_vrms_box";
+                expectedLength = 7;
+
+                // Send request command for Vrms
+                byte[] myBytes = { 0x49, 0x01, 0x50, 0x66 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // Clear content in the target TextBox
+                p2_irms_box.Clear();
+
+                // Clear serial port receive buffer
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // Wait for the next valid frame
+
+                // Send stop command 
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 200ms
+
+                // Set target TextBox name
+                targetTextBox = "p2_irms_box";
+                expectedLength = 7;
+
+                // Send request command for Irms
+                byte[] myBytes = { 0x49, 0x01, 0x52, 0x64 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 200ms
+            }
+        }
+
+
+        private void button1_Click_3(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // 清空 RichTextBox 控制元件內容
+                p2_pavg_box.Clear();
+
+                // 清除串口接收缓冲区中的数据
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // 清除整个缓冲区，等待下一个有效数据帧
+
+                // 發送停止命令 
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 100ms
+                //await Task.Delay(200);  // 非同步延遲
+
+                // 设置目标为 p2_pavg_box
+                targetTextBox = "p2_pavg_box";
+                expectedLength = 7;
+
+                // 向串口发送数据
+                byte[] myBytes = { 0x49, 0x01, 0x54, 0x62 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 100ms
+                //await Task.Delay(200);  // 非同步延遲
+
+                /*
+                if (serialPort1.BytesToRead >= 7)
+                {
+                    byte[] buffer = new byte[7];
+                    serialPort1.Read(buffer, 0, 7);
+
+                    // Debug
+                    string result = BitConverter.ToString(buffer, 0, buffer.Length).Replace("-", " "); // 將讀取到的數據轉換為字串
+                    Console.WriteLine(result);
+
+                    // 检查第一个字节为 0x49，第二个字节为 0x04
+                    if (buffer[0] == 0x49 && buffer[1] == 0x04)
+                    {
+                        uint Pavg_int32 = (uint)(buffer[2] << 24 | buffer[3] << 16 | buffer[4] << 8 | buffer[5]);
+                        float Pavg_float = (float)(Pavg_int32 / 1000.0);
+                        Console.WriteLine("Value : " + Pavg_float);
+                        p2_pavg_box.Text = Pavg_float.ToString();
+                    }
+                }
+                */
+            }
+        }
+
+        // ===== RMS Value / DC Value 掃描流程的啟停控制 =====
+        // 原本按下去就一路跑到底：中途發現接線、負載規格或量測結果不對也停不下來，
+        // 只能等 repeat × 20 個負載點全部跑完，或直接把程式關掉。
+        // 而且整段流程從頭到尾沒有對電子負載下過 LOAD ON —— CURR:STAT:L1 只是「要拉多少電流」，
+        // 真正把負載接上去的是 LOAD ON，少了它就得靠負載面板剛好還開著才量得到東西。
+        //
+        // 改成（作法比照 Data.cs 的 RunSweepAsync）：
+        //   1. 按下 RMS Value / DC Value → 該顆按鈕就地變成 Stop，再按一次即中斷。
+        //   2. 流程開頭 *CLS → 電流歸零 → LOAD ON。
+        //   3. 不論正常跑完、丟例外或使用者中斷，finally 一律電流歸零 + LOAD OFF。
+        private CancellationTokenSource sweepCts;
+        private Button sweepButton;         // 目前被借去當 Stop 的那一顆
+        private string sweepButtonText;     // 借用前的字樣，收尾時復歸
+        private Color sweepButtonColor;
+
+        private bool SweepRunning => sweepCts != null;
+
+        // 把 owner 借去當 Stop，另一顆掃描按鈕停用，避免兩段流程同時對同一台負載下命令。
+        private void BeginSweepUi(Button owner, Button other)
+        {
+            sweepCts = new CancellationTokenSource();
+            sweepButton = owner;
+            sweepButtonText = owner.Text;
+            sweepButtonColor = owner.ForeColor;
+
+            owner.Text = "Stop";
+            owner.ForeColor = Color.Firebrick;
+            if (other != null) other.Enabled = false;
+
+            // 掃描中不准 Disconnect：session 一旦被關掉，收尾就送不出 LOAD OFF，
+            // 負載會被留在拉載的狀態。要停請按 Stop，收完尾再斷線。
+            visa_connect_btn.Enabled = false;
+        }
+
+        // 按鈕字樣與啟用狀態復歸，讓下一輪可以重新開始。
+        private void EndSweepUi(Button other)
+        {
+            if (sweepButton != null)
+            {
+                sweepButton.Text = sweepButtonText;
+                sweepButton.ForeColor = sweepButtonColor;
+                sweepButton = null;
+            }
+
+            if (other != null) other.Enabled = true;
+            visa_connect_btn.Enabled = true;
+
+            try { sweepCts?.Dispose(); } catch { }
+            sweepCts = null;
+        }
+
+        // 按下 Stop 只送出取消要求；歸零與 LOAD OFF 一律交給掃描流程的 finally 收尾，
+        // 避免這裡與流程本身同時對負載下命令。
+        private void RequestStopSweep()
+        {
+            try { sweepCts?.Cancel(); } catch { }
+
+            if (sweepButton != null) sweepButton.Text = "Stopping...";
+            SetStatus(StatusLevel.Warn, "Stopping... DC Load will be turned off.");
+        }
+
+        // ===== DC Load 命令族 =====
+        // 這一段的作法與命令內容取自 Data.cs（ProbeLoad / LoadCommandSets）。
+        // Chroma 兩個負載家族的命令完全不同，不能共用：
+        //
+        //   63xxx  電子負載        CURR:STAT:L1 <A>   /  LOAD ON|OFF
+        //   62000D 雙向電源        LOAD:CURRent <A>   /  CONFigure:OUTPut ON|OFF，
+        //                          且拉載前必須先 SYSTem:MODE LOAD 把機器切到負載模式。
+        //
+        // 關鍵在於：送出機器不認識的命令時，Chroma 只會把錯誤丟進佇列、不做任何動作。
+        // 沒有例外、沒有逾時、面板上也毫無異狀 —— 外觀就是「按了 RMS Value，
+        // 負載卻完全沒有反應」。本檔原本把 63xxx 的寫法寫死，接上另一族的機器就是這個下場，
+        // 而且因為從來沒人讀過錯誤佇列，錯了幾百次也沒有任何跡象。
+        //
+        // 因此命令族不能用猜的，也不能靠型號硬編碼：連線後對候選族送出它的電流查詢，
+        // 機器答得出數值、且錯誤佇列乾淨，才認定是這一族。型號只決定嘗試順序。
+        private class DcLoadCommandSet
+        {
+            public string Name;
+            /// <summary>電流設定命令的前綴，後面接空白與安培值。</summary>
+            public string SetCurrent;
+            /// <summary>探測用：能正常回應此查詢，代表機器屬於這一族。</summary>
+            public string QueryCurrent;
+            public string OutputOn;
+            public string OutputOff;
+            /// <summary>拉載前要先送的模式切換命令；null 代表這一族不需要切模式。</summary>
+            public string EnterLoadMode;
+            /// <summary>型號前綴符合時優先試這一族，避免對不支援的機器送查詢白等一次逾時。</summary>
+            public string[] ModelPrefixes;
+        }
+
+        private static readonly DcLoadCommandSet[] DcLoadCommandSets =
+        {
+            new DcLoadCommandSet
+            {
+                Name          = "Chroma 63xxx 電子負載",
+                SetCurrent    = "CURR:STAT:L1",
+                QueryCurrent  = "CURR:STAT:L1?",
+                OutputOn      = "LOAD ON",
+                OutputOff     = "LOAD OFF",
+                EnterLoadMode = null,
+                ModelPrefixes = new[] { "63" },
+            },
+            new DcLoadCommandSet
+            {
+                Name          = "Chroma 62000D 雙向電源（Load 模式）",
+                SetCurrent    = "LOAD:CURRent",
+                QueryCurrent  = "LOAD:CURRent?",
+                OutputOn      = "CONFigure:OUTPut ON",
+                OutputOff     = "CONFigure:OUTPut OFF",
+                EnterLoadMode = "SYSTem:MODE LOAD",
+                ModelPrefixes = new[] { "62" },
+            },
+        };
+
+        // 連線後探測出來的命令族，Disconnect 時清掉。
+        private DcLoadCommandSet dcLoadCommands;
+
+        // 命令一律補上 LF 結尾（本檔原本每個呼叫點各自手寫 "\n"，漏掉一次就是靜默失敗）。
+        private static void VisaWrite(MessageBasedSession s, string cmd)
+        {
+            s.RawIO.Write(cmd.EndsWith("\n") ? cmd : cmd + "\n");
+        }
+
+        private static string VisaQuery(MessageBasedSession s, string cmd)
+        {
+            VisaWrite(s, cmd);
+            return s.RawIO.ReadString().Trim();
+        }
+
+        // 查詢 SCPI 錯誤佇列，取回非零錯誤的原文；佇列乾淨或讀不到則回 null。
+        // Chroma 收到不認識的命令不會有任何外顯反應，只會在這裡留下記錄。
+        private static string DcLoadErrorText(MessageBasedSession s)
+        {
+            try
+            {
+                string e = VisaQuery(s, "SYSTem:ERRor?");
+                if (string.IsNullOrEmpty(e)) return null;
+
+                double code;
+                string first = e.Split(',')[0].Trim();
+                if (double.TryParse(first, NumberStyles.Float, CultureInfo.InvariantCulture, out code)
+                    && Math.Abs(code) > 0.5)
+                    return e;
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // 讀不到錯誤佇列不該讓量測跑不起來，只留 log
+                Console.WriteLine("DC Load SYSTem:ERRor? failed: " + ex.Message);
+                return null;
+            }
+        }
+
+        // 送出一個查詢並判斷機器是否真的屬於這一族：要能解析出數字，且錯誤佇列乾淨。
+        // 逾時代表機器不認識這條命令，輸出緩衝可能殘留半筆資料，因此清一次介面再繼續，
+        // 否則下一族的查詢會讀到上一筆的殘骸而誤判。
+        private bool DcLoadAnswers(MessageBasedSession session, string query)
+        {
+            int oldTimeout = session.TimeoutMilliseconds;
+            try
+            {
+                session.TimeoutMilliseconds = 2000;
+                VisaWrite(session, "*CLS");
+
+                string answer = VisaQuery(session, query);
+                double v;
+                if (!double.TryParse(answer, NumberStyles.Float, CultureInfo.InvariantCulture, out v))
+                    return false;
+
+                return DcLoadErrorText(session) == null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DC Load probe {query} failed: {ex.Message}");
+                try { session.Clear(); } catch { }
+                return false;
+            }
+            finally
+            {
+                try { session.TimeoutMilliseconds = oldTimeout; } catch { }
+            }
+        }
+
+        // 探測命令族。已經探測過就直接沿用，不必每次掃描都重來一次。
+        private DcLoadCommandSet EnsureDcLoadCommands()
+        {
+            if (dcLoadCommands != null) return dcLoadCommands;
+
+            MessageBasedSession session = RequireDcLoadSession();
+            if (session == null) return null;
+
+            string model = InstrModel(SafeIdn(session));
+            var ordered = DcLoadCommandSets
+                .OrderByDescending(cs => MatchesPrefix(model, cs.ModelPrefixes))
+                .ToList();
+
+            foreach (var cs in ordered)
+            {
+                if (DcLoadAnswers(session, cs.QueryCurrent))
+                {
+                    dcLoadCommands = cs;
+                    Console.WriteLine($"DC Load command set : {cs.Name}  ({cs.SetCurrent} / {cs.OutputOn})");
+                    return cs;
+                }
+                Console.WriteLine($"DC Load probe {cs.QueryCurrent,-16} -> not supported");
+            }
+
+            // 查詢全部失敗時仍要給一組命令，否則整個掃描無從執行。
+            // 依型號推定，推不出來就用清單第一族（63xxx，本工具原本的預設）。
+            dcLoadCommands = ordered[0];
+            Console.WriteLine("DC Load command probe failed, assuming by model : " + dcLoadCommands.Name);
+            return dcLoadCommands;
+        }
+
+        // 組出「設定拉載電流」的命令。小數點一律用 InvariantCulture，
+        // 免得換到逗號當小數點的地區設定就送出 "CURR:STAT:L1 3,60" 這種機器看不懂的字串。
+        private string DcLoadSetCurrentCommand(double amps)
+        {
+            var cs = dcLoadCommands ?? DcLoadCommandSets[0];
+            return cs.SetCurrent + " " + amps.ToString("0.##", CultureInfo.InvariantCulture);
+        }
+
+        // 掃描開頭開負載：先切模式（需要的機種）、電流歸零，最後才開輸出 ——
+        // 避免上一輪殘留的電流設定值一開就整個灌下去。
+        // 送完回頭讀一次錯誤佇列：命令被機器吃掉的話，這是唯一看得出來的地方。
+        private bool TurnOnDcLoad()
+        {
+            MessageBasedSession session = RequireDcLoadSession();
+            if (session == null) return false;
+
+            DcLoadCommandSet cs = EnsureDcLoadCommands();
+            if (cs == null) return false;
+
+            // 先清掉錯誤佇列裡上一輪的殘留，等一下問到的才是這次開負載的結果
+            VisaWrite(session, "*CLS");
+
+            // 62000D 這類雙向電源開機時可能停在 Source 模式，不先切到 Load 模式，
+            // 後面的電流命令會被機器忽略。63xxx 電子負載沒有這道手續。
+            if (cs.EnterLoadMode != null)
+            {
+                VisaWrite(session, cs.EnterLoadMode);
+                Console.WriteLine("DC Load <- " + cs.EnterLoadMode);
+            }
+
+            VisaWrite(session, DcLoadSetCurrentCommand(0));
+            VisaWrite(session, cs.OutputOn);
+            Console.WriteLine("DC Load <- " + cs.OutputOn);
+
+            string err = DcLoadErrorText(session);
+            if (err != null)
+            {
+                SetStatus(StatusLevel.Error,
+                          $"DC Load did not turn on - measurement aborted. SYSTem:ERRor? = {err}",
+                          $"    Command set : {cs.Name}\r\n" +
+                          $"    Sent        : {cs.OutputOn}\r\n" +
+                          $"    DC Load     : {DC_Load63202A_Address}");
+                return false;
+            }
+
+            Console.WriteLine("DC Load is ON.");
+            SetStatus(StatusLevel.Info, "DC Load ON.");
+            return true;
+        }
+
+        // 收尾關負載：正常結束、例外與使用者中斷都會走到這裡，所以自己吞掉例外，
+        // 不讓收尾動作再丟出第二個錯誤蓋掉原本的失敗原因。
+        private void TurnOffDcLoad()
+        {
+            try
+            {
+                if (dcLoadSession == null) return;
+
+                var cs = dcLoadCommands ?? DcLoadCommandSets[0];
+                VisaWrite(dcLoadSession, DcLoadSetCurrentCommand(0));
+                VisaWrite(dcLoadSession, cs.OutputOff);
+                Console.WriteLine("DC Load <- " + cs.OutputOff);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("TurnOffDcLoad: " + ex.Message);
+            }
+        }
+
+        async private void button12_Click(object sender, EventArgs e)
+        {
+            // 掃描進行中，這顆按鈕的身分是 Stop
+            if (SweepRunning) { RequestStopSweep(); return; }
+
+            await RunLoadSweepAsync(button12, button14, "button12_Click");
+        }
+
+        async private void button14_Click(object sender, EventArgs e)
+        {
+            // 掃描進行中，這顆按鈕的身分是 Stop
+            if (SweepRunning) { RequestStopSweep(); return; }
+
+            // Chroma 66202 不支援 MEAS:xxx:DC? 命令，DC 模式也一律用 RMS 命令讀取，
+            // 因此 DC Value 與 RMS Value 走的是同一段流程。
+            await RunLoadSweepAsync(button14, button12, "button14_Click");
+        }
+
+        // 電流輸入兩種寫法都收：先試 "6.96"（不分地區），再試當地地區設定的寫法。
+        // 原本用的 float.TryParse 只吃當地設定，改成只認 Invariant 反而會把原本
+        // 能用的輸入擋掉 —— 兩邊都試才不會縮限使用者。
+        // 注意這只管「讀進來」；送給儀器的字串一律走 InvariantCulture（見 DcLoadSetCurrentCommand）。
+        private static bool TryParseCurrent(string text, out double value)
+        {
+            string s = (text ?? "").Trim();
+
+            if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return true;
+            if (double.TryParse(s, NumberStyles.Float, CultureInfo.CurrentCulture, out value)) return true;
+
+            value = 0;
+            return false;
+        }
+
+        // 掃描參數不合法時擋在流程外面，並指名是哪一格、現在填的是什麼、該填什麼。
+        // 不用「Invalid input」這種看了也不知道要改哪裡的訊息。
+        private void ShowSweepInputError(string field, string value, string expected)
+        {
+            string shown = string.IsNullOrWhiteSpace(value) ? "(empty)" : value.Trim();
+
+            SetStatus(StatusLevel.Warn,
+                      $"\"{field}\" is invalid ({shown}) - measurement not started. Expected {expected}.");
+        }
+
+        /// <summary>
+        /// 5% ~ 100% 的負載掃描：每點設定電流 → 停留 Delay 秒 → 讀功率計、算誤差、寫檔與 Accuracy 表格。
+        /// owner 是被按下的那顆按鈕（掃描期間變成 Stop），other 是掃描期間要停用的另一顆。
+        /// </summary>
+        async private Task RunLoadSweepAsync(Button owner, Button other, string context)
+        {
+            if (!serialPort1.IsOpen) return;
+
+            BeginSweepUi(owner, other);
+            CancellationToken ct = sweepCts.Token;
+
+            try
+            {
+                // 電流命令下下去之前先把負載打開，否則整輪都在對一台沒接上的負載設定電流。
+                if (!TurnOnDcLoad()) return;
+
+                // 使用系統時間動態生成檔名，格式化為 "yyyyMMdd_HHmmss"
+                string fileName = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string filePath = $"output_{fileName}.txt"; // 組合成完整檔案路徑
+
+                // 如果文件已經存在，刪除它以創建一個新的
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+
+                // 初始化一個空文件
+                using (StreamWriter sw = new StreamWriter(filePath))
+                {
+                    // 寫入表頭
+                    //sw.WriteLine("Voltage RMS");
+                }
+
+                // ===== 讀取三個輸入框 =====
+                // 原本三個 TryParse 的回傳值都被丟掉，解析失敗就悄悄拿 0 往下跑，
+                // 而這三個框在 Designer 裡的預設值都是空字串。後果分別是：
+                //   Delay  = 0 → 換完負載立刻讀值，功率計還沒重新量測、MCU 的 auto-report
+                //                也還沒送出新的一幀，記下來的是「上一個負載點」的數值 ——
+                //                整張表系統性偏移一格，畫面上完全看不出異狀。
+                //   Repeat = 0 → 兩層迴圈一次都不跑，卻照樣跳「Successfully written」，檔案是空的。
+                //   100%   = 0 → 每一點都送 0 A。
+                // 這種錯誤不能默默吞掉，直接擋在流程外面並講清楚是哪一格。
+
+                // 讀取100%電流規格
+                // 宣告成 double 而非 float：float × int 會先在單精度算完才除以 100，
+                // 光是這個中間型別就足以讓部分負載點的設定值差 0.01 A。
+                double maxCurrent;
+                if (!TryParseCurrent(curr_100p_box.Text, out maxCurrent) || maxCurrent <= 0)
+                {
+                    ShowSweepInputError("100% Current", curr_100p_box.Text, "a positive number, e.g. 6.96");
+                    return;
+                }
+                Console.WriteLine(maxCurrent);
+
+                // 讀取Delay sencond
+                // 上限 3600 秒有兩個用途：擋掉手殘多打一個 0，
+                // 也順便讓 delaySec * 1000 不可能撐爆 int。
+                int delaySec;
+                if (!int.TryParse(delay_sec_box.Text.Trim(), out delaySec) || delaySec < 0 || delaySec > 3600)
+                {
+                    ShowSweepInputError("Delay (sec)", delay_sec_box.Text, "an integer from 0 to 3600");
+                    return;
+                }
+                Console.WriteLine(delaySec);
+
+                // Delay 0 秒不是解析失敗，是使用者真的填 0 —— 合法但幾乎一定量錯，
+                // 因為換點之後沒有任何穩定時間。擋不得，但要留下記錄。
+                if (delaySec == 0)
+                    Console.WriteLine("WARNING: Delay = 0 s, readings may still belong to the previous load point.");
+
+                // 讀取Repeat
+                int repeatTimes;
+                if (!int.TryParse(repeat_box.Text.Trim(), out repeatTimes) || repeatTimes < 1)
+                {
+                    ShowSweepInputError("Repeat", repeat_box.Text, "an integer of 1 or more");
+                    return;
+                }
+                Console.WriteLine(repeatTimes);
+
+                // 重新量測 -> 先清空 Accuracy 分頁的舊資料
+                ResetAccuracyTable();
+
+                for (int repeatCount = 0; repeatCount < repeatTimes; repeatCount++)
+                {
+                    // 從5%到100%，每次增加5%
+                    for (int percentage = 5; percentage <= 100; percentage += 5)
+                    {
+                        // 每個負載點開頭檢查一次；按下 Stop 後最晚在下一點開頭就會離開迴圈。
+                        ct.ThrowIfCancellationRequested();
+
+                        // 負載設定值宣告在 using 外面，後面累積 Accuracy 表格時要用到
+                        // 保留2位小數。指定 AwayFromZero：Math.Round 的預設是銀行家捨入
+                        // （遇到剛好 .5 進到偶數），會讓 max=0.5A 的 5% 變成 0.02 而不是 0.03，
+                        // 而且同一輪裡有的點進、有的點捨，方向不一致。
+                        double currentValue = Math.Round(maxCurrent * percentage / 100.0, 2,
+                                                         MidpointRounding.AwayFromZero);
+
+                        // 打開與設備的會話
+                        {
+                            // 使用 Connect 時建立的常駐 session
+                            MessageBasedSession session = RequireDcLoadSession();
+                            if (session == null) return;
+
+                            Console.WriteLine($"Setting current to {percentage}% of {maxCurrent}A: {currentValue}A");
+
+                            // 發送SCPI命令來設定電流值。命令前綴取自連線時探測到的命令族，
+                            // 不再寫死 CURR:STAT:L1 —— 那只有 63xxx 認得。
+                            string command = DcLoadSetCurrentCommand(currentValue);
+                            VisaWrite(session, command);
+
+                            // 每點都確認一次：電流超出機器的 LIMit 設定時，命令會被拒絕但外觀毫無異狀。
+                            string setErr = DcLoadErrorText(session);
+                            if (setErr != null) Console.WriteLine($"DC Load rejected [{command}] : {setErr}");
+                        }
+
+                        SetStatus(StatusLevel.Info, $"Sweeping {repeatCount + 1}/{repeatTimes} - {percentage}% ({currentValue:F2} A)");
+
+                        // 等待（帶取消權杖，停留期間按 Stop 就立刻中斷，不必等這一點跑完）
+                        await Task.Delay(delaySec * 1000, ct);  // 非同步延遲
+
+                        // 打開與設備的會話
+                        {
+                            // 使用 Connect 時建立的常駐 session
+                            MessageBasedSession session = RequirePowerMeterSession();
+                            if (session == null) return;
+
+                            // 讀取 V / I / P（依 IDN 自動切換 Chroma / Yokogawa 命令集）
+                            ReadPowerMeterRaw(session, out string voltageRmsResponse,
+                                              out string currentRmsResponse, out string powerResponse);
+
+                            // 清空 RichTextBox 控制元件內容
+                            chroma_box.Clear();
+
+                            // 將讀取到的數據顯示在 richTextBox1 中
+                            chroma_box.Text = voltageRmsResponse + currentRmsResponse + powerResponse;
+                            //chroma_box.AppendText(percentage.ToString());
+
+                            chroma_box.AppendText($"{repeatCount + 1}\n");
+                            chroma_box.AppendText($"{percentage:F2}%\n");
+
+                            // 增加格式化後的數據顯示
+                            //chroma_box.AppendText("\n\n");
+                            //chroma_box.AppendText(vrms_float.ToString("N2") + "\n");
+                            //chroma_box.AppendText(irms_float.ToString("N5") + "\n");
+                            //chroma_box.AppendText(power_float.ToString("N3") + "\n");
+
+
+                            // 模擬得到的6筆數值數據
+                            double[] values = new double[6];
+
+                            double voltageRmsValue;
+                            double.TryParse(voltageRmsResponse, out voltageRmsValue);
+                            values[0] = voltageRmsValue;
+
+                            double currentRmsValue;
+                            double.TryParse(currentRmsResponse, out currentRmsValue);
+                            values[1] = currentRmsValue;
+
+                            double powerValue;
+                            double.TryParse(powerResponse, out powerValue);
+                            values[2] = powerValue;
+
+                            values[3] = vrms_float;
+                            values[4] = irms_float;
+                            values[5] = power_float;
+
+                            values[3] = Math.Round(vrms_float, 2); // 保留2位小數
+                            values[4] = Math.Round(irms_float, 5); // 保留5位小數
+                            values[5] = Math.Round(power_float, 3); // 保留3位小數
+
+                            // 清空 RichTextBox 控制元件內容
+                            error_rate.Clear();
+
+                            // 將讀取到的數據顯示在 richTextBox2 中
+                            if (voltageRmsValue != 0)
+                            {
+                                double voltage_error_rate;
+                                voltage_error_rate = ((voltageRmsValue - vrms_float) / voltageRmsValue) * 100.0;
+                                error_rate.AppendText($"{voltage_error_rate:F2}%\n");
+                            }
+
+                            if (currentRmsValue != 0)
+                            {
+                                double current_error_rate;
+                                current_error_rate = ((currentRmsValue - irms_float) / currentRmsValue) * 100.0;
+                                error_rate.AppendText($"{current_error_rate:F2}%\n");
+                            }
+
+                            if (powerValue != 0)
+                            {
+                                double power_error_rate;
+                                power_error_rate = ((powerValue - power_float) / powerValue) * 100.0;
+                                error_rate.AppendText($"{power_error_rate:F2}%\n");
+                            }
+
+                            // 累積這個負載點到 Accuracy 分頁的表格
+                            // (error_rate 這個文字框每輪都會被 Clear，只看得到最後一點；
+                            //  表格才是完整的 5%~100% 誤差列表)
+                            AddSweepPoint(percentage, currentValue,
+                                          voltageRmsValue, currentRmsValue, powerValue,
+                                          vrms_float, irms_float, power_float);
+
+                            // 讀取當前的文件內容並拆分成多行
+                            string[] fileLines = File.Exists(filePath) ? File.ReadAllLines(filePath) : new string[6];
+
+                            // 確保文件中有6行（對應6筆數據）
+                            if (fileLines.Length < 6)
+                            {
+                                Array.Resize(ref fileLines, 6); // 如果不足6行，則擴展到6行
+                            }
+
+                            // 打開文件以追加方式寫入
+                            using (StreamWriter sw = new StreamWriter(filePath))
+                            {
+                                for (int i = 0; i < 6; i++)
+                                {
+                                    string formattedValue;
+
+                                    // 根據索引設置不同的小數位格式
+                                    if (i == 0)
+                                    {
+                                        formattedValue = values[i].ToString("F2");  // 第一筆到小數點第2位
+                                    }
+                                    else if (i == 1)
+                                    {
+                                        formattedValue = values[i].ToString("F4");  // 第二筆到小數點第4位
+                                    }
+                                    else if (i == 2)
+                                    {
+                                        formattedValue = values[i].ToString("F2");  // 第三筆到小數點第2位
+                                    }
+                                    else if (i == 3)
+                                    {
+                                        formattedValue = values[i].ToString("F2");  // 第四筆到小數點第2位
+                                    }
+                                    else if (i == 4)
+                                    {
+                                        formattedValue = values[i].ToString("F5");  // 第五筆到小數點第5位
+                                    }
+                                    else // i == 5
+                                    {
+                                        formattedValue = values[i].ToString("F3");  // 第六筆到小數點第3位
+                                    }
+
+                                    // 將當前數據附加到每一行的末尾，如果行為null則設置為空字符串
+                                    if (string.IsNullOrEmpty(fileLines[i]))
+                                    {
+                                        fileLines[i] = formattedValue; // 新行
+                                    }
+                                    else
+                                    {
+                                        fileLines[i] += $"\t{formattedValue}"; // 將數值附加到現有行，使用制表符分隔
+                                    }
+                                }
+
+                                // 將修改後的內容寫回文件
+                                foreach (var line in fileLines)
+                                {
+                                    sw.WriteLine(line);
+                                }
+                            }
+
+                        }
+                    }
+                }
+
+                // 全部量測完成 -> 電流歸零並關閉負載。
+                TurnOffDcLoad();
+                SetStatus(StatusLevel.Info, $"Sweep completed - DC Load OFF, saved to {filePath}");
+            }
+            catch (OperationCanceledException)
+            {
+                // 使用者按下 Stop：負載由 finally 統一關閉。
+                // 中斷是自己按的，不必再跳視窗擋著，狀態列講一聲就好。
+                SetStatus(StatusLevel.Warn, "Measurement stopped. DC Load OFF.");
+                Console.WriteLine("Sweep stopped by user.");
+            }
+            catch (VisaException ex)
+            {
+                ShowVisaError(ex, context);
+            }
+            finally
+            {
+                // 中途 return、丟例外或被中斷都會走到這裡，負載絕不會被留在 ON 的狀態。
+                TurnOffDcLoad();
+                EndSweepUi(other);
+            }
+        }
+
+        private void button15_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                try
+                {
+                    // 清空 RichTextBox 控制元件內容
+                    cali_v1_box.Clear();
+                    cali_i1_box.Clear();
+                    cali_p1_box.Clear();
+
+                    // 打開與設備的會話
+                    {
+                        // 使用 Connect 時建立的常駐 session
+                        MessageBasedSession session = RequirePowerMeterSession();
+                        if (session == null) return;
+
+                        // 讀取 V / I / P（依 IDN 自動切換 Chroma / Yokogawa 命令集）
+                        ReadPowerMeterRaw(session, out string voltageRmsResponse,
+                                          out string currentRmsResponse, out string powerResponse);
+
+                        // 將讀取到的數據顯示在 richTextBox1 中
+                        cali_v1_box.Text = voltageRmsResponse;
+                        cali_i1_box.Text = currentRmsResponse;
+                        cali_p1_box.Text = powerResponse;
+                    }
+                }
+                catch (VisaException ex)
+                {
+                    ShowVisaError(ex, "button15_Click");
+                }
+            }
+        }
+
+        private void button17_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                try
+                {
+                    // 清空 RichTextBox 控制元件內容
+                    cali_v2_box.Clear();
+                    cali_i2_box.Clear();
+                    cali_p2_box.Clear();
+
+                    // 打開與設備的會話
+                    {
+                        // 使用 Connect 時建立的常駐 session
+                        MessageBasedSession session = RequirePowerMeterSession();
+                        if (session == null) return;
+
+                        // 讀取 V / I / P（依 IDN 自動切換 Chroma / Yokogawa 命令集）
+                        ReadPowerMeterRaw(session, out string voltageRmsResponse,
+                                          out string currentRmsResponse, out string powerResponse);
+
+                        // 將讀取到的數據顯示在 richTextBox1 中
+                        cali_v2_box.Text = voltageRmsResponse;
+                        cali_i2_box.Text = currentRmsResponse;
+                        cali_p2_box.Text = powerResponse;
+                    }
+                }
+                catch (VisaException ex)
+                {
+                    ShowVisaError(ex, "button17_Click");
+                }
+            }
+        }
+
+        private void button18_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                try
+                {
+                    // 清空 RichTextBox 控制元件內容
+                    cali_v3_box.Clear();
+                    cali_i3_box.Clear();
+                    cali_p3_box.Clear();
+
+                    // 打開與設備的會話
+                    {
+                        // 使用 Connect 時建立的常駐 session
+                        MessageBasedSession session = RequirePowerMeterSession();
+                        if (session == null) return;
+
+                        // Chroma 66202 不支援 MEAS:xxx:DC? 命令，DC 模式也一律用 RMS 命令讀取。
+                        // 讀取 V / I / P（依 IDN 自動切換 Chroma / Yokogawa 命令集）
+                        ReadPowerMeterRaw(session, out string voltageRmsResponse,
+                                          out string currentRmsResponse, out string powerResponse);
+
+                        // 將讀取到的數據顯示在 richTextBox1 中
+                        cali_v3_box.Text = voltageRmsResponse;
+                        cali_i3_box.Text = currentRmsResponse;
+                        cali_p3_box.Text = powerResponse;
+                    }
+                }
+                catch (VisaException ex)
+                {
+                    ShowVisaError(ex, "button18_Click");
+                }
+            }
+        }
+
+        private void button19_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // 清空 RichTextBox 控制元件內容
+                status_box.Clear();
+
+                // 清除串口接收缓冲区中的数据
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // 清除整个缓冲区，等待下一个有效数据帧
+
+                // 發送停止命令 
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 100ms
+                //await Task.Delay(200);  // 非同步延遲
+
+                // 设置目标为 chip_ssid_box
+                targetTextBox = "status_box";
+                expectedLength = 4;
+
+                // 向串口发送数据
+                byte[] myBytes = { 0x49, 0x01, 0x85, 0x31 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 100ms
+                //await Task.Delay(200);  // 非同步延遲
+
+                /*
+                if (serialPort1.BytesToRead >= 4)
+                {
+                    byte[] buffer = new byte[4];
+                    serialPort1.Read(buffer, 0, 4);
+                    
+                    // Debug
+                    string result = BitConverter.ToString(buffer, 0, buffer.Length).Replace("-", " "); // 將讀取到的數據轉換為字串
+                    Console.WriteLine(result);
+
+                    // 检查第一个字节为 0x49，第二个字节为 0x01
+                    if (buffer[0] == 0x49 && buffer[1] == 0x01)
+                    {
+                        byte thirdByte = buffer[2];
+                        Console.WriteLine("Value : " + thirdByte);
+                        string dataString = thirdByte.ToString("D2");
+                        chip_ssid_box.AppendText(dataString);
+                    }                    
+                }
+                */
+            }
+        }
+
+        private void button5_Click_1(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)
+            {
+                // 清空 RichTextBox 控制元件內容
+                p1_pavg_box.Clear();
+
+                // 清除串口接收缓冲区中的数据
+                serialPort1.DiscardInBuffer();
+                receiveBuffer.Clear();  // 清除整个缓冲区，等待下一个有效数据帧
+
+                // 發送停止命令 
+                byte[] myBytes1 = { 0x49, 0x01, 0x83, 0x33 };
+                serialPort1.Write(myBytes1, 0, myBytes1.Length);
+                Thread.Sleep(200);  // Delay 100ms
+                //await Task.Delay(200);  // 非同步延遲 
+
+                // 设置目标为 p3_pavg_box
+                targetTextBox = "p1_pavg_box";
+                expectedLength = 7;
+
+                // 向串口发送数据
+                byte[] myBytes = { 0x49, 0x01, 0x34, 0x82 };
+                serialPort1.Write(myBytes, 0, myBytes.Length);
+                Thread.Sleep(200);  // Delay 100ms
+                //await Task.Delay(200);  // 非同步延遲
+
+                /*
+                if (serialPort1.BytesToRead >= 7)
+                {
+                    byte[] buffer = new byte[7];
+                    serialPort1.Read(buffer, 0, 7);
+
+                    // Debug
+                    string result = BitConverter.ToString(buffer, 0, buffer.Length).Replace("-", " "); // 將讀取到的數據轉換為字串
+                    Console.WriteLine(result);
+
+                    // 检查第一个字节为 0x49，第二个字节为 0x04
+                    if (buffer[0] == 0x49 && buffer[1] == 0x04)
+                    {
+                        uint Pavg_int32 = (uint)(buffer[2] << 24 | buffer[3] << 16 | buffer[4] << 8 | buffer[5]);
+                        float Pavg_float = (float)(Pavg_int32 / 1000.0);
+                        Console.WriteLine("Value : " + Pavg_float);
+                        p3_pavg_box.Text = Pavg_float.ToString();
+                    }
+                }
+                */
+            }
+        }
+
+
+
+        /*
+ * Required using:
+ * using System;
+ * using System.Globalization;
+ * using System.IO;
+ * using System.Linq;
+ * using System.Windows.Forms;
+ *
+ * 請將以下程式放在 Form 類別內。
+ */
+
+        #region Calibration constants
+
+        // TXT第10筆為50%負載點，陣列Index為9
+        private const int CalibrationPoint50Percent = 9;
+
+        private const double CurrentCompensationMin = -0.05;
+        private const double CurrentCompensationMax = 0.05;
+        private const double CurrentCompensationStep = 0.000001;
+
+        private const double VoltageDropResistanceMin = 0.0;
+        private const double VoltageDropResistanceMax = 1.0;
+        private const double VoltageDropResistanceStep = 0.000001;
+
+        private const double PowerCompensationMin = -10.0;
+        private const double PowerCompensationMax = 10.0;
+        private const double PowerCompensationStep = 0.0001;
+
+        #endregion
+
+        #region Button events
+
+        // DC240V按鈕：保留原事件名稱，避免Designer綁定失效
+        private void button3_Click_2(object sender, EventArgs e)
+        {
+            SetStatus(StatusLevel.Warn, "Calibration feature is removed.");
+        }
+
+        // 60Hz 分頁 AC115V按鈕：保留原事件名稱，避免Designer綁定失效
+        private void button4_Click_2(object sender, EventArgs e)
+        {
+            SetStatus(StatusLevel.Warn, "Calibration feature is removed.");
+        }
+
+        // 50Hz 分頁 AC115V按鈕
+        private void read_ac115_50hz_btn_Click(object sender, EventArgs e)
+        {
+            SetStatus(StatusLevel.Warn, "Calibration feature is removed.");
+        }
+
+        // 60Hz / 50Hz 兩個分頁共用：算法完全相同，只是結果填進該頻率自己的欄位。
+        // 選的 TXT 必須是在該頻率下量的 sweep。
+        private void LoadAc230File(
+            string calibrationMode,
+            TextBox linearABox,
+            TextBox linearBBox,
+            TextBox quadraticABox,
+            TextBox quadraticBBox,
+            TextBox quadraticCBox,
+            TextBox rvdropBox,
+            TextBox pCompBox)
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Title = $"Select {calibrationMode} Raw Data";
+                dialog.Filter =
+                    "TXT files (*.txt)|*.txt|" +
+                    "All files (*.*)|*.*";
+                dialog.Multiselect = false;
+
+                if (dialog.ShowDialog() != DialogResult.OK)
+                    return;
+
+                try
+                {
+                    Ac230LightLoadResult result =
+                        CalculateAc230LightLoadParameters(
+                            dialog.FileName);
+
+                    linearABox.Text = FormatCompValue(result.LinearA);
+                    linearBBox.Text = FormatCompValue(result.LinearB);
+                    quadraticABox.Text = FormatCompValue(result.QuadraticA);
+                    quadraticBBox.Text = FormatCompValue(result.QuadraticB);
+                    quadraticCBox.Text = FormatCompValue(result.QuadraticC);
+                    rvdropBox.Text = FormatCompValue(result.VoltageDropResistance);
+                    pCompBox.Text = FormatCompValue(result.PowerCompensation);
+
+                    ShowAc230LightLoadSummary(
+                        calibrationMode,
+                        dialog.FileName,
+                        result);
+                }
+                catch (Exception ex)
+                {
+                    linearABox.Clear();
+                    linearBBox.Clear();
+                    quadraticABox.Clear();
+                    quadraticBBox.Clear();
+                    quadraticCBox.Clear();
+                    rvdropBox.Clear();
+                    pCompBox.Clear();
+
+                    ShowCalibrationError(calibrationMode, ex);
+                }
+            }
+        }
+
+        private void LoadAc115File(
+            string calibrationMode,
+            TextBox rvdropBox,
+            TextBox iCompBox)
+        {
+            try
+            {
+                string selectedFilePath;
+                CalibrationResult result =
+                    SelectAndCalculateCalibrationFile(
+                        calibrationMode,
+                        out selectedFilePath);
+
+                if (result == null)
+                    return;
+
+                rvdropBox.Text = FormatCompValue(result.VoltageDropResistance);
+                iCompBox.Text = FormatCompValue(result.CurrentCompensation);
+
+                ShowCalibrationSummary(
+                    calibrationMode,
+                    selectedFilePath,
+                    result);
+            }
+            catch (Exception ex)
+            {
+                rvdropBox.Clear();
+                iCompBox.Clear();
+
+                ShowCalibrationError(calibrationMode, ex);
+            }
+        }
+
+        private static string FormatCompValue(double value)
+        {
+            return value.ToString("F6", CultureInfo.InvariantCulture);
+        }
+
+        #endregion
+
+        #region Main workflow
+
+        private CalibrationResult SelectAndCalculateCalibrationFile(
+            string calibrationMode,
+            out string selectedFilePath)
+        {
+            selectedFilePath = null;
+
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Title = $"Select {calibrationMode} Raw Data";
+                dialog.Filter =
+                    "TXT files (*.txt)|*.txt|" +
+                    "All files (*.*)|*.*";
+                dialog.Multiselect = false;
+
+                if (dialog.ShowDialog() != DialogResult.OK)
+                    return null;
+
+                selectedFilePath = dialog.FileName;
+                return CalculateCalibration(selectedFilePath);
+            }
+        }
+
+        private CalibrationResult CalculateCalibration(string filePath)
+        {
+            CalibrationData data = LoadCalibrationData(filePath);
+
+            CalibrationResult result =
+                FindBestCurrentCompensation(data);
+
+            FindBestVoltageDropResistance(data, result);
+            FindBestPowerCompensation(data, result);
+
+            return result;
+        }
+
+        #endregion
+
+        #region Data models
+
+        private sealed class CalibrationData
+        {
+            public double[] ReferenceVoltage { get; set; }
+            public double[] ReferenceCurrent { get; set; }
+            public double[] ReferencePower { get; set; }
+
+            public double[] RawVoltage { get; set; }
+            public double[] RawCurrent { get; set; }
+            public double[] RawPower { get; set; }
+
+            public int Count => ReferenceVoltage.Length;
+        }
+
+        private sealed class CalibrationResult
+        {
+            // Current calibration
+            public double CurrentCompensation { get; set; }
+            public double CurrentGain50 { get; set; }
+            public double CurrentAverageError { get; set; }
+            public double CurrentMaximumError { get; set; }
+
+            // Voltage calibration
+            public double VoltageDropResistance { get; set; }
+            public double VoltageGain50 { get; set; }
+            public double VoltageAverageError { get; set; }
+            public double VoltageMaximumError { get; set; }
+
+            // Power calibration
+            public double PowerCompensation { get; set; }
+            public double PowerGain50 { get; set; }
+            public double PowerAverageError { get; set; }
+            public double PowerMaximumError { get; set; }
+        }
+
+        private sealed class Ac230LightLoadResult
+        {
+            public double CurrentGain50 { get; set; }
+            public double CurrentAverageError { get; set; }
+            public double CurrentMaximumError { get; set; }
+
+            // 5%輕載：y = LinearA * x + LinearB
+            public double LinearA { get; set; }
+            public double LinearB { get; set; }
+
+            // 10%~25%輕載：y = QuadraticA*x^2 + QuadraticB*x + QuadraticC
+            public double QuadraticA { get; set; }
+            public double QuadraticB { get; set; }
+            public double QuadraticC { get; set; }
+
+            // AC230V Rvdrop校正結果
+            public double VoltageDropResistance { get; set; }
+            public double VoltageGain50 { get; set; }
+            public double VoltageAverageError { get; set; }
+            public double VoltageMaximumError { get; set; }
+
+            // AC230V功率校正結果
+            public double PowerCompensation { get; set; }
+            public double PowerGain50 { get; set; }
+            public double PowerAverageError { get; set; }
+            public double PowerMaximumError { get; set; }
+        }
+
+        #endregion
+
+        #region AC230V light-load current compensation
+
+        private Ac230LightLoadResult CalculateAc230LightLoadParameters(
+            string filePath)
+        {
+            CalibrationData data = LoadCalibrationData(filePath);
+
+            double currentGain50 =
+                data.ReferenceCurrent[CalibrationPoint50Percent] /
+                data.RawCurrent[CalibrationPoint50Percent];
+
+            double[] correctedCurrent = new double[data.Count];
+            double[] compensationRatio = new double[data.Count];
+
+            for (int i = 0; i < data.Count; i++)
+            {
+                // x：先經過50%一點校正的電流
+                correctedCurrent[i] =
+                    data.RawCurrent[i] * currentGain50;
+
+                if (Math.Abs(correctedCurrent[i]) < 1e-12)
+                {
+                    throw new InvalidDataException(
+                        $"Corrected current at point {i + 1} cannot be zero.");
+                }
+
+                // y：輕載補償倍率
+                compensationRatio[i] =
+                    data.ReferenceCurrent[i] /
+                    correctedCurrent[i];
+            }
+
+            // 5%公式使用5%與10%兩點求一次式
+            double x5 = correctedCurrent[0];
+            double y5 = compensationRatio[0];
+            double x10 = correctedCurrent[1];
+            double y10 = compensationRatio[1];
+
+            if (Math.Abs(x10 - x5) < 1e-12)
+            {
+                throw new InvalidDataException(
+                    "The corrected currents at 5% and 10% cannot be identical.");
+            }
+
+            double linearA =
+                (y10 - y5) / (x10 - x5);
+
+            double linearB =
+                y5 - linearA * x5;
+
+            // 10%、15%、20%、25%四點做二次最小平方擬合
+            double[] quadraticParameters = FitQuadraticCurve(
+                correctedCurrent,
+                compensationRatio,
+                1,
+                4);
+
+            // 計算經過50%校正及輕載補償後的電流誤差
+            double currentTotalAbsoluteError = 0.0;
+            double currentMaximumAbsoluteError = 0.0;
+
+            for (int i = 0; i < data.Count; i++)
+            {
+                double current = correctedCurrent[i];
+                double lightLoadRatio = 1.0;
+
+                if (i == 0)
+                {
+                    lightLoadRatio =
+                        linearA * current + linearB;
+                }
+                else if (i >= 1 && i <= 4)
+                {
+                    lightLoadRatio =
+                        quadraticParameters[0] * current * current +
+                        quadraticParameters[1] * current +
+                        quadraticParameters[2];
+                }
+
+                double finalCurrent =
+                    current * lightLoadRatio;
+
+                double absoluteError = Math.Abs(
+                    CalculateErrorPercent(
+                        finalCurrent,
+                        data.ReferenceCurrent[i]));
+
+                currentTotalAbsoluteError += absoluteError;
+                currentMaximumAbsoluteError = Math.Max(
+                    currentMaximumAbsoluteError,
+                    absoluteError);
+            }
+
+            double currentAverageError =
+                currentTotalAbsoluteError / data.Count;
+
+            double[] voltageDropResult =
+                FindBestAc230VoltageDropResistance(
+                    data,
+                    correctedCurrent,
+                    linearA,
+                    linearB,
+                    quadraticParameters[0],
+                    quadraticParameters[1],
+                    quadraticParameters[2]);
+
+            // AC230V功率補償：先套用電壓與電流的50%比例，
+            // 再搜尋使全量程平均絕對誤差最小的補償值。
+            CalibrationResult powerResult =
+                new CalibrationResult();
+
+            FindBestPowerCompensation(
+                data,
+                powerResult);
+
+            return new Ac230LightLoadResult
+            {
+                CurrentGain50 = currentGain50,
+                CurrentAverageError = currentAverageError,
+                CurrentMaximumError = currentMaximumAbsoluteError,
+                LinearA = linearA,
+                LinearB = linearB,
+                QuadraticA = quadraticParameters[0],
+                QuadraticB = quadraticParameters[1],
+                QuadraticC = quadraticParameters[2],
+                VoltageDropResistance = voltageDropResult[0],
+                VoltageGain50 = voltageDropResult[1],
+                VoltageAverageError = voltageDropResult[2],
+                VoltageMaximumError = voltageDropResult[3],
+                PowerCompensation = powerResult.PowerCompensation,
+                PowerGain50 = powerResult.PowerGain50,
+                PowerAverageError = powerResult.PowerAverageError,
+                PowerMaximumError = powerResult.PowerMaximumError
+            };
+        }
+
+        private double[] FindBestAc230VoltageDropResistance(
+            CalibrationData data,
+            double[] currentAfter50PercentCalibration,
+            double linearA,
+            double linearB,
+            double quadraticA,
+            double quadraticB,
+            double quadraticC)
+        {
+            double[] finalCorrectedCurrent =
+                new double[data.Count];
+
+            for (int i = 0; i < data.Count; i++)
+            {
+                double current =
+                    currentAfter50PercentCalibration[i];
+
+                double lightLoadRatio = 1.0;
+
+                if (i == 0)
+                {
+                    // 5%輕載使用一次方程式
+                    lightLoadRatio =
+                        linearA * current + linearB;
+                }
+                else if (i >= 1 && i <= 4)
+                {
+                    // 10%~25%輕載使用二次方程式
+                    lightLoadRatio =
+                        quadraticA * current * current +
+                        quadraticB * current +
+                        quadraticC;
+                }
+
+                finalCorrectedCurrent[i] =
+                    current * lightLoadRatio;
+            }
+
+            double bestResistance = 0.0;
+            double bestGain50 = 0.0;
+            double bestAverageError = double.MaxValue;
+            double bestMaximumError = double.MaxValue;
+
+            int searchCount = (int)Math.Round(
+                (VoltageDropResistanceMax - VoltageDropResistanceMin) /
+                VoltageDropResistanceStep);
+
+            for (int n = 0; n <= searchCount; n++)
+            {
+                double resistance =
+                    VoltageDropResistanceMin +
+                    n * VoltageDropResistanceStep;
+
+                // Vcomp = Vraw + Ifinal * Rvdrop
+                double compensatedVoltageAt50 =
+                    data.RawVoltage[CalibrationPoint50Percent] +
+                    finalCorrectedCurrent[CalibrationPoint50Percent] *
+                    resistance;
+
+                if (Math.Abs(compensatedVoltageAt50) < 1e-12)
+                    continue;
+
+                // Rvdrop後再使用50%負載做電壓一點校正
+                double gain50 =
+                    data.ReferenceVoltage[CalibrationPoint50Percent] /
+                    compensatedVoltageAt50;
+
+                double totalAbsoluteError = 0.0;
+                double maximumAbsoluteError = 0.0;
+
+                for (int i = 0; i < data.Count; i++)
+                {
+                    double compensatedVoltage =
+                        data.RawVoltage[i] +
+                        finalCorrectedCurrent[i] * resistance;
+
+                    double correctedVoltage =
+                        compensatedVoltage * gain50;
+
+                    double absoluteError = Math.Abs(
+                        CalculateErrorPercent(
+                            correctedVoltage,
+                            data.ReferenceVoltage[i]));
+
+                    totalAbsoluteError += absoluteError;
+                    maximumAbsoluteError = Math.Max(
+                        maximumAbsoluteError,
+                        absoluteError);
+                }
+
+                double averageError =
+                    totalAbsoluteError / data.Count;
+
+                if (averageError < bestAverageError)
+                {
+                    bestResistance = resistance;
+                    bestGain50 = gain50;
+                    bestAverageError = averageError;
+                    bestMaximumError = maximumAbsoluteError;
+                }
+            }
+
+            return new[]
+            {
+                bestResistance,
+                bestGain50,
+                bestAverageError,
+                bestMaximumError
+            };
+        }
+
+        private double[] FitQuadraticCurve(
+            double[] x,
+            double[] y,
+            int startIndex,
+            int endIndex)
+        {
+            double sumX = 0.0;
+            double sumX2 = 0.0;
+            double sumX3 = 0.0;
+            double sumX4 = 0.0;
+            double sumY = 0.0;
+            double sumXY = 0.0;
+            double sumX2Y = 0.0;
+
+            int pointCount = endIndex - startIndex + 1;
+
+            for (int i = startIndex; i <= endIndex; i++)
+            {
+                double x2 = x[i] * x[i];
+                double x3 = x2 * x[i];
+                double x4 = x2 * x2;
+
+                sumX += x[i];
+                sumX2 += x2;
+                sumX3 += x3;
+                sumX4 += x4;
+                sumY += y[i];
+                sumXY += x[i] * y[i];
+                sumX2Y += x2 * y[i];
+            }
+
+            double[,] augmentedMatrix =
+            {
+                { sumX4, sumX3, sumX2, sumX2Y },
+                { sumX3, sumX2, sumX,  sumXY  },
+                { sumX2, sumX,  pointCount, sumY }
+            };
+
+            return SolveThreeVariableEquation(augmentedMatrix);
+        }
+
+        private double[] SolveThreeVariableEquation(double[,] matrix)
+        {
+            const int variableCount = 3;
+
+            for (int column = 0; column < variableCount; column++)
+            {
+                int pivotRow = column;
+
+                for (int row = column + 1; row < variableCount; row++)
+                {
+                    if (Math.Abs(matrix[row, column]) >
+                        Math.Abs(matrix[pivotRow, column]))
+                    {
+                        pivotRow = row;
+                    }
+                }
+
+                if (Math.Abs(matrix[pivotRow, column]) < 1e-15)
+                {
+                    throw new InvalidOperationException(
+                        "The AC230V quadratic fitting matrix cannot be solved.");
+                }
+
+                if (pivotRow != column)
+                {
+                    for (int j = column; j <= variableCount; j++)
+                    {
+                        double temporary = matrix[column, j];
+                        matrix[column, j] = matrix[pivotRow, j];
+                        matrix[pivotRow, j] = temporary;
+                    }
+                }
+
+                double pivot = matrix[column, column];
+
+                for (int j = column; j <= variableCount; j++)
+                {
+                    matrix[column, j] /= pivot;
+                }
+
+                for (int row = 0; row < variableCount; row++)
+                {
+                    if (row == column)
+                        continue;
+
+                    double factor = matrix[row, column];
+
+                    for (int j = column; j <= variableCount; j++)
+                    {
+                        matrix[row, j] -=
+                            factor * matrix[column, j];
+                    }
+                }
+            }
+
+            return new[]
+            {
+                matrix[0, 3],
+                matrix[1, 3],
+                matrix[2, 3]
+            };
+        }
+
+        #endregion
+
+        #region TXT loading and validation
+
+        private CalibrationData LoadCalibrationData(string filePath)
+        {
+            string[] lines = File.ReadAllLines(filePath)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToArray();
+
+            /*
+             * TXT格式：
+             * 第1列 Reference/Chroma Vrms
+             * 第2列 Reference/Chroma Irms
+             * 第3列 Reference/Chroma Active Power
+             * 第4列 NADC24 Raw Vrms
+             * 第5列 NADC24 Raw Irms
+             * 第6列 NADC24 Raw Active Power
+             */
+            if (lines.Length < 6)
+            {
+                throw new InvalidDataException(
+                    "TXT file must contain at least 6 non-empty rows.");
+            }
+
+            CalibrationData data = new CalibrationData
+            {
+                ReferenceVoltage = ParseDataLine(lines[0], 1),
+                ReferenceCurrent = ParseDataLine(lines[1], 2),
+                ReferencePower = ParseDataLine(lines[2], 3),
+                RawVoltage = ParseDataLine(lines[3], 4),
+                RawCurrent = ParseDataLine(lines[4], 5),
+                RawPower = ParseDataLine(lines[5], 6)
+            };
+
+            ValidateCalibrationData(data);
+            return data;
+        }
+
+        private double[] ParseDataLine(string line, int rowNumber)
+        {
+            string[] values = line.Split(
+                new[] { '\t', ' ', ',' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            try
+            {
+                return values
+                    .Select(value => double.Parse(
+                        value,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture))
+                    .ToArray();
+            }
+            catch (FormatException)
+            {
+                throw new InvalidDataException(
+                    $"TXT row {rowNumber} contains invalid numeric data.");
+            }
+            catch (OverflowException)
+            {
+                throw new InvalidDataException(
+                    $"TXT row {rowNumber} contains a number outside the valid range.");
+            }
+        }
+
+        private void ValidateCalibrationData(CalibrationData data)
+        {
+            if (data.Count <= CalibrationPoint50Percent)
+            {
+                throw new InvalidDataException(
+                    "At least 10 load points are required for 50% calibration.");
+            }
+
+            int expectedCount = data.Count;
+
+            if (data.ReferenceCurrent.Length != expectedCount ||
+                data.ReferencePower.Length != expectedCount ||
+                data.RawVoltage.Length != expectedCount ||
+                data.RawCurrent.Length != expectedCount ||
+                data.RawPower.Length != expectedCount)
+            {
+                throw new InvalidDataException(
+                    "All six TXT rows must contain the same number of data points.");
+            }
+
+            ValidateNonZeroReferences(
+                data.ReferenceVoltage,
+                "voltage");
+
+            ValidateNonZeroReferences(
+                data.ReferenceCurrent,
+                "current");
+
+            ValidateNonZeroReferences(
+                data.ReferencePower,
+                "power");
+        }
+
+        private void ValidateNonZeroReferences(
+            double[] values,
+            string measurementName)
+        {
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (Math.Abs(values[i]) < 1e-12)
+                {
+                    throw new InvalidDataException(
+                        $"Reference {measurementName} at point {i + 1} cannot be zero.");
+                }
+            }
+        }
+
+        #endregion
+
+        #region Current compensation
+
+        private CalibrationResult FindBestCurrentCompensation(
+            CalibrationData data)
+        {
+            double bestCompensation = 0.0;
+            double bestGain50 = 0.0;
+            double bestAverageError = double.MaxValue;
+            double bestMaximumError = double.MaxValue;
+
+            int searchCount = (int)Math.Round(
+                (CurrentCompensationMax - CurrentCompensationMin) /
+                CurrentCompensationStep);
+
+            for (int n = 0; n <= searchCount; n++)
+            {
+                double compensation =
+                    CurrentCompensationMin +
+                    n * CurrentCompensationStep;
+
+                // 先加I Comp，再用50%負載點計算Current Gain
+                double compensatedCurrentAt50 =
+                    data.RawCurrent[CalibrationPoint50Percent] +
+                    compensation;
+
+                if (Math.Abs(compensatedCurrentAt50) < 1e-12)
+                    continue;
+
+                double gain50 =
+                    data.ReferenceCurrent[CalibrationPoint50Percent] /
+                    compensatedCurrentAt50;
+
+                double totalAbsoluteError = 0.0;
+                double maximumAbsoluteError = 0.0;
+
+                for (int i = 0; i < data.Count; i++)
+                {
+                    double correctedCurrent =
+                        (data.RawCurrent[i] + compensation) *
+                        gain50;
+
+                    double errorPercent = CalculateErrorPercent(
+                        correctedCurrent,
+                        data.ReferenceCurrent[i]);
+
+                    double absoluteError = Math.Abs(errorPercent);
+                    totalAbsoluteError += absoluteError;
+                    maximumAbsoluteError = Math.Max(
+                        maximumAbsoluteError,
+                        absoluteError);
+                }
+
+                double averageError =
+                    totalAbsoluteError / data.Count;
+
+                if (averageError < bestAverageError)
+                {
+                    bestCompensation = compensation;
+                    bestGain50 = gain50;
+                    bestAverageError = averageError;
+                    bestMaximumError = maximumAbsoluteError;
+                }
+            }
+
+            return new CalibrationResult
+            {
+                CurrentCompensation = bestCompensation,
+                CurrentGain50 = bestGain50,
+                CurrentAverageError = bestAverageError,
+                CurrentMaximumError = bestMaximumError
+            };
+        }
+
+        #endregion
+
+        #region Voltage drop resistance compensation
+
+        private void FindBestVoltageDropResistance(
+            CalibrationData data,
+            CalibrationResult result)
+        {
+            double[] correctedCurrent = new double[data.Count];
+
+            for (int i = 0; i < data.Count; i++)
+            {
+                correctedCurrent[i] =
+                    (data.RawCurrent[i] + result.CurrentCompensation) *
+                    result.CurrentGain50;
+            }
+
+            double bestResistance = 0.0;
+            double bestGain50 = 0.0;
+            double bestAverageError = double.MaxValue;
+            double bestMaximumError = double.MaxValue;
+
+            int searchCount = (int)Math.Round(
+                (VoltageDropResistanceMax - VoltageDropResistanceMin) /
+                VoltageDropResistanceStep);
+
+            for (int n = 0; n <= searchCount; n++)
+            {
+                double resistance =
+                    VoltageDropResistanceMin +
+                    n * VoltageDropResistanceStep;
+
+                // Vcomp = Vraw + Icorrected * Rvdrop
+                double compensatedVoltageAt50 =
+                    data.RawVoltage[CalibrationPoint50Percent] +
+                    correctedCurrent[CalibrationPoint50Percent] *
+                    resistance;
+
+                if (Math.Abs(compensatedVoltageAt50) < 1e-12)
+                    continue;
+
+                double gain50 =
+                    data.ReferenceVoltage[CalibrationPoint50Percent] /
+                    compensatedVoltageAt50;
+
+                double totalAbsoluteError = 0.0;
+                double maximumAbsoluteError = 0.0;
+
+                for (int i = 0; i < data.Count; i++)
+                {
+                    double compensatedVoltage =
+                        data.RawVoltage[i] +
+                        correctedCurrent[i] * resistance;
+
+                    double correctedVoltage =
+                        compensatedVoltage * gain50;
+
+                    double errorPercent = CalculateErrorPercent(
+                        correctedVoltage,
+                        data.ReferenceVoltage[i]);
+
+                    double absoluteError = Math.Abs(errorPercent);
+                    totalAbsoluteError += absoluteError;
+                    maximumAbsoluteError = Math.Max(
+                        maximumAbsoluteError,
+                        absoluteError);
+                }
+
+                double averageError =
+                    totalAbsoluteError / data.Count;
+
+                if (averageError < bestAverageError)
+                {
+                    bestResistance = resistance;
+                    bestGain50 = gain50;
+                    bestAverageError = averageError;
+                    bestMaximumError = maximumAbsoluteError;
+                }
+            }
+
+            result.VoltageDropResistance = bestResistance;
+            result.VoltageGain50 = bestGain50;
+            result.VoltageAverageError = bestAverageError;
+            result.VoltageMaximumError = bestMaximumError;
+        }
+
+        #endregion
+
+        #region Power compensation
+
+        private void FindBestPowerCompensation(
+            CalibrationData data,
+            CalibrationResult result)
+        {
+            /*
+             * 與Excel公式一致：
+             * Ptemp = Praw * VoltageRatio50 * CurrentRatio50 + PComp
+             * Pfinal = Ptemp * PowerGain50
+             */
+            double voltageRatio50 =
+                data.ReferenceVoltage[CalibrationPoint50Percent] /
+                data.RawVoltage[CalibrationPoint50Percent];
+
+            double currentRatio50 =
+                data.ReferenceCurrent[CalibrationPoint50Percent] /
+                data.RawCurrent[CalibrationPoint50Percent];
+
+            double bestCompensation = 0.0;
+            double bestGain50 = 0.0;
+            double bestAverageError = double.MaxValue;
+            double bestMaximumError = double.MaxValue;
+
+            int searchCount = (int)Math.Round(
+                (PowerCompensationMax - PowerCompensationMin) /
+                PowerCompensationStep);
+
+            for (int n = 0; n <= searchCount; n++)
+            {
+                double compensation =
+                    PowerCompensationMin +
+                    n * PowerCompensationStep;
+
+                double compensatedPowerAt50 =
+                    data.RawPower[CalibrationPoint50Percent] *
+                    voltageRatio50 *
+                    currentRatio50 +
+                    compensation;
+
+                if (Math.Abs(compensatedPowerAt50) < 1e-12)
+                    continue;
+
+                double gain50 =
+                    data.ReferencePower[CalibrationPoint50Percent] /
+                    compensatedPowerAt50;
+
+                double totalAbsoluteError = 0.0;
+                double maximumAbsoluteError = 0.0;
+
+                for (int i = 0; i < data.Count; i++)
+                {
+                    double compensatedPower =
+                        data.RawPower[i] *
+                        voltageRatio50 *
+                        currentRatio50 +
+                        compensation;
+
+                    double correctedPower =
+                        compensatedPower * gain50;
+
+                    double errorPercent = CalculateErrorPercent(
+                        correctedPower,
+                        data.ReferencePower[i]);
+
+                    double absoluteError = Math.Abs(errorPercent);
+                    totalAbsoluteError += absoluteError;
+                    maximumAbsoluteError = Math.Max(
+                        maximumAbsoluteError,
+                        absoluteError);
+                }
+
+                double averageError =
+                    totalAbsoluteError / data.Count;
+
+                if (averageError < bestAverageError)
+                {
+                    bestCompensation = compensation;
+                    bestGain50 = gain50;
+                    bestAverageError = averageError;
+                    bestMaximumError = maximumAbsoluteError;
+                }
+            }
+
+            result.PowerCompensation = bestCompensation;
+            result.PowerGain50 = bestGain50;
+            result.PowerAverageError = bestAverageError;
+            result.PowerMaximumError = bestMaximumError;
+        }
+
+        private void button8_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        #endregion
+
+        #region Display helpers
+
+        private void ShowAc230LightLoadSummary(
+            string calibrationMode,
+            string filePath,
+            Ac230LightLoadResult result)
+        {
+            // 完整報表（含兩條擬合方程式）留在 Output 視窗；狀態列放三個最大誤差。
+            SetStatus(StatusLevel.Info,
+                $"{calibrationMode} light-load calibration completed ({Path.GetFileName(filePath)}) - "
+                + $"max error  I {result.CurrentMaximumError:F4}%  "
+                + $"V {result.VoltageMaximumError:F4}%  "
+                + $"P {result.PowerMaximumError:F4}%",
+
+                $"    [Current]\r\n" +
+                $"    Gain 50%: {result.CurrentGain50:F12}\r\n" +
+                $"    Average Error: {result.CurrentAverageError:F6}%\r\n" +
+                $"    Maximum Error: {result.CurrentMaximumError:F6}%\r\n" +
+                $"    5% equation      : y = {result.LinearA:F12}x + {result.LinearB:F12}\r\n" +
+                $"    10%~25% equation : y = {result.QuadraticA:F12}x^2 " +
+                $"+ {result.QuadraticB:F12}x " +
+                $"+ {result.QuadraticC:F12}\r\n" +
+                $"    [Voltage]\r\n" +
+                $"    Rvdrop: {result.VoltageDropResistance:F6} Ohm\r\n" +
+                $"    Gain 50%: {result.VoltageGain50:F12}\r\n" +
+                $"    Average Error: {result.VoltageAverageError:F6}%\r\n" +
+                $"    Maximum Error: {result.VoltageMaximumError:F6}%\r\n" +
+                $"    [Power]\r\n" +
+                $"    P Comp: {result.PowerCompensation:F6} W\r\n" +
+                $"    Gain 50%: {result.PowerGain50:F12}\r\n" +
+                $"    Average Error: {result.PowerAverageError:F6}%\r\n" +
+                $"    Maximum Error: {result.PowerMaximumError:F6}%");
+        }
+
+        private void ShowCalibrationError(
+            string calibrationMode,
+            Exception exception)
+        {
+            SetStatus(StatusLevel.Error,
+                      $"Read {calibrationMode} file error - {exception.Message}");
+        }
+
+        private void ShowCalibrationSummary(
+            string calibrationMode,
+            string filePath,
+            CalibrationResult result)
+        {
+            // 完整報表留在 Output 視窗；狀態列放最常被看的那三個最大誤差。
+            SetStatus(StatusLevel.Info,
+                $"{calibrationMode} calibration completed ({Path.GetFileName(filePath)}) - "
+                + $"max error  I {result.CurrentMaximumError:F4}%  "
+                + $"V {result.VoltageMaximumError:F4}%  "
+                + $"P {result.PowerMaximumError:F4}%",
+
+                $"    [Current]\r\n" +
+                $"    I Comp: {result.CurrentCompensation:F6} A\r\n" +
+                $"    Gain 50%: {result.CurrentGain50:F12}\r\n" +
+                $"    Average Error: {result.CurrentAverageError:F6}%\r\n" +
+                $"    Maximum Error: {result.CurrentMaximumError:F6}%\r\n" +
+                $"    [Voltage]\r\n" +
+                $"    Rvdrop: {result.VoltageDropResistance:F6} Ohm\r\n" +
+                $"    Gain 50%: {result.VoltageGain50:F12}\r\n" +
+                $"    Average Error: {result.VoltageAverageError:F6}%\r\n" +
+                $"    Maximum Error: {result.VoltageMaximumError:F6}%\r\n" +
+                $"    [Power]\r\n" +
+                $"    P Comp: {result.PowerCompensation:F6} W\r\n" +
+                $"    Gain 50%: {result.PowerGain50:F12}\r\n" +
+                $"    Average Error: {result.PowerAverageError:F6}%\r\n" +
+                $"    Maximum Error: {result.PowerMaximumError:F6}%");
+        }
+
+        private double CalculateErrorPercent(
+            double measuredValue,
+            double referenceValue)
+        {
+            return (measuredValue - referenceValue) /
+                   referenceValue * 100.0;
+        }
+
+        #endregion
+    }
+}

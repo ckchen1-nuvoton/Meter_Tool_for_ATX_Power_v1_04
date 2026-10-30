@@ -1,0 +1,837 @@
+<?xml version="1.0" encoding="utf-8"?>
+<doc>
+<assembly><name>Endorphin.Core</name></assembly>
+<members>
+<member name="P:Endorphin.Core.AsyncExtensions.ResultChannel`1.ResultAvailable">
+<summary>
+ Check if a result has been registered with the channel.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncExtensions.ResultChannel`1.RegisterResult(`0)">
+<summary>
+ Record the result, starting any registered continuations.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncExtensions.ResultChannel`1.AwaitResult">
+<summary>
+ Wait for a result to be registered on the channel asynchronously.
+</summary>
+</member>
+<member name="T:Endorphin.Core.AsyncExtensions.ResultChannel`1">
+<summary>
+ A single-fire result channel which can be used to await a result asynchronously.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncModule.map2``3(Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpFunc{``1,``2}},Microsoft.FSharp.Control.FSharpAsync{``0},Microsoft.FSharp.Control.FSharpAsync{``1})">
+<summary>
+ Apply a mapping function which takes two async workflows and returns a new one.
+</summary>
+</member>
+<member name="M:Endorphin.Core.AsyncModule.map``2(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Control.FSharpAsync{``0})">
+<summary>
+ Apply a mapping function inside an async workflow.
+</summary>
+</member>
+<member name="P:Endorphin.Core.CancellationCapability.CancellationCapability`1.Token">
+<summary>
+ Returns the cancellation token.
+</summary>
+</member>
+<member name="P:Endorphin.Core.CancellationCapability.CancellationCapability`1.Options">
+<summary>
+ Returns the options argument specifed at cancellation. Throws an exception if cancellation has not
+ taken place.
+</summary>
+</member>
+<member name="P:Endorphin.Core.CancellationCapability.CancellationCapability`1.IsCancellationRequested">
+<summary>
+ Checks if cancellation has already been requested.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CancellationCapability.CancellationCapability`1.System-IDisposable-Dispose">
+<summary>
+ Disposes of the System.Threading.CancellationCapability object.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CancellationCapability.CancellationCapability`1.Cancel(`0)">
+<summary>
+ Cancels the cancellation capability after setting the specified cancellation options. Can only be
+ called once.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CancellationCapability.CancellationCapability`1">
+<summary>
+ Cancellation capability with generic options which must be specified at cancellation.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CancellationCapability.CancellationCapability">
+<summary>
+ Type alias for System.Threading.CancellationTokenSource.
+</summary>
+</member>
+<member name="P:Endorphin.Core.Choice.choice">
+<summary>
+ Create the choice computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.|Success|Failure|``2(Microsoft.FSharp.Core.FSharpChoice{``0,``1})">
+<summary>
+ Success or failure semantics for Choice types.  These function simply as aliases for Choice1Of2
+ and Choice2Of2.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Zero``1">
+<summary>
+ Get the zero value of the choice computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.ReturnFrom``2(Microsoft.FSharp.Core.FSharpChoice{``0,``1})">
+<summary>
+ Return a choice value from a computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Return``2(``0)">
+<summary>
+ Return a non-choice value as a choice.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Delay``2(Microsoft.FSharp.Core.FSharpFunc{Microsoft.FSharp.Core.Unit,Microsoft.FSharp.Core.FSharpChoice{``0,``1}})">
+<summary>
+ Delay performing a function inside a choice computational expression.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Combine``2(Microsoft.FSharp.Core.FSharpChoice{Microsoft.FSharp.Core.Unit,``0},Microsoft.FSharp.Core.FSharpChoice{``1,``0})">
+<summary>
+ Combine a value with the global state.  The global state must be Choice&lt;unit, _&gt; for this
+ to work.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.Builder.Bind``3(Microsoft.FSharp.Core.FSharpChoice{``0,``1},Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{``2,``1}})">
+<summary>
+ Bind a new choice onto the global state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.lift``2(``0)">
+<summary>
+ Lift any value into being a choice success. Does the same thing as Choice.succeed, but without
+ the implication it was a success.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.bindOrRaise``2(Microsoft.FSharp.Core.FSharpChoice{``0,``1})">
+<summary>
+ Return the success value of a state, or raise the exception stored in the error state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.bind``3(Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{``1,``2}},Microsoft.FSharp.Core.FSharpChoice{``0,``2})">
+<summary>
+ Bind a choice-returning function onto an existing choice.  If the given state is in the success
+ state, then apply the binding to the successful value.  If the given state is in the failure state,
+ then simply propagate that failure.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.mapError``3(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Core.FSharpChoice{``2,``0})">
+<summary>
+ Map a function onto the error type of a choice state.  If the choice is in the error state, then
+ apply the mapping.  Otherwise simply return the success state.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.map``3(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Core.FSharpChoice{``0,``2})">
+<summary>
+ Map a function onto a choice type.  If the choice is in the success state, then apply the mapping,
+ otherwise return the previous failure message.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.fail``2(``0)">
+<summary>
+ Return a failure state of the given value.
+</summary>
+</member>
+<member name="M:Endorphin.Core.Choice.Choice.succeed``2(``0)">
+<summary>
+ Return a success state of the given value.
+</summary>
+</member>
+<member name="T:Endorphin.Core.Choice">
+<summary>
+ Functions for dealing with choices between success and failure states.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CommandRequestAgent.CommandRequestAgent.close``1(Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{Microsoft.FSharp.Core.Unit,System.Exception}},Endorphin.Core.CommandRequestAgent.Model.CommandRequestAgent{``0})">
+<summary>
+ Shuts down the message-processing agent after calling the supplied closing function. The
+ function may succeed or fail, and if failure occurs, the enclosed exception is raised.
+ Furthermore, an exception will be raised if there are any remaining messages in the queue
+ at this point.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CommandRequestAgent.CommandRequestAgent.performValueRequest``2(System.String,Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{``1,System.Exception}},Endorphin.Core.CommandRequestAgent.Model.CommandRequestAgent{``0})">
+<summary>
+ Posts a request to the message queue which will be executed by calling the provided
+ function. The request may succeed or fail, and if failure occurs, the enclosed
+ exception is raised. If the request is successful, it returns a value type. The
+ provided description is used for logging.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CommandRequestAgent.CommandRequestAgent.performObjectRequest``2(System.String,Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{``1,System.Exception}},Endorphin.Core.CommandRequestAgent.Model.CommandRequestAgent{``0})">
+<summary>
+ Posts a request to the message queue which will be executed by calling the provided
+ function. The request may succeed or fail, and if failure occurs, the enclosed
+ exception is raised. . If the request is successful, it returns an object type. The
+ provided description is used for logging.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CommandRequestAgent.CommandRequestAgent.performCommand``1(System.String,Microsoft.FSharp.Core.FSharpFunc{``0,Microsoft.FSharp.Core.FSharpChoice{Microsoft.FSharp.Core.Unit,System.Exception}},Endorphin.Core.CommandRequestAgent.Model.CommandRequestAgent{``0})">
+<summary>
+ Posts a command to the message queue which will be executed by calling the provided
+ function. The command may succeed or fail, and if failure occurs, the enclosed
+ exception is raised. The provided description is used for logging.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CommandRequestAgent.CommandRequestAgent.create``1(Microsoft.FSharp.Core.FSharpFunc{``0,System.String},Microsoft.FSharp.Core.FSharpFunc{Microsoft.FSharp.Core.Unit,Microsoft.FSharp.Control.FSharpAsync{Microsoft.FSharp.Core.FSharpChoice{``0,System.Exception}}})">
+<summary>
+ Asynchronously starts a new command/request agent with the given name (function of
+ state, used for logging purposes) and initialisation workflow. The initialisation
+ may fail, in which case this workflow will return failure. Furthermore, the
+ processing of any given message may fail.
+</summary>
+</member>
+<member name="M:Endorphin.Core.CommandRequestAgent.CommandRequestAgent.messageDescription``1(Endorphin.Core.CommandRequestAgent.Model.CommandRequestMessage{``0})">
+<summary>
+ Returns a string describing the message.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CommandRequestAgent.CommandRequestAgent">
+<summary>
+ Functions for creating and interacting with a generic command/request agent with error
+ handling used to serialise posted commands and requests which are defined by closures.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CommandRequestAgent.Model.CommandRequestAgent`1">
+<summary>
+ A command/request agent processes messages of CommandRequestMessage type. The details
+ of the implementation are hidden from the user of the library.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CommandRequestAgent.Model.CommandRequestMessage`1">
+<summary>
+ Agent message, defining a command or request. Each message case is parameteraised by
+ a closure dependent on the state of the agent which is determined at initialisation.
+ Each command or request may fail, so the return type of the contained closures is of
+ Choice&lt;&apos;Result, exn&gt;. If the the failure case is returned, the exception is raised by
+ the function which posts the command or request to the agent. Commands do not return a
+ vaule in the success case, so the result type is unit. Requests can either return a
+ value type or an object type. Command and request messages also include a description
+ which is used for logging. Finally, the close message notifies the agent that it
+ should stop processing messages.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CommandRequestAgent.Model">
+<summary>
+ Command/request agent model.
+</summary>
+</member>
+<member name="T:Endorphin.Core.CommandRequestAgent">
+<summary>
+ Generic command/request agent with error handling used to serialise posted commands and
+ requests which are defined by closures. Useful in serialising communications to an
+ instrument with a C API.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Identity">
+<summary>
+ The identity structure returned from a SCPI instrument in response to
+ the &quot;*IDN?&quot; query.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Error">
+<summary>
+ A SCPI error returned from a machine.  Negative error codes are defined
+ in the SCPI specification, while positive ones are device-dependant.
+</summary>
+</member>
+<member name="P:Endorphin.Core.SCPI.IScpiInstrument.Terminator(System.Byte[])">
+<summary>
+ The line termination characters to use.
+</summary>
+</member>
+<member name="P:Endorphin.Core.SCPI.IScpiInstrument.Terminator">
+<summary>
+ The line termination characters to use.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.IScpiInstrument.Write(System.Byte[])">
+<summary>
+ Write an array of bytes to a SCPI instrument asynchronously,
+ expecting no response.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.IScpiInstrument.Query(System.Byte[])">
+<summary>
+ Write an array of bytes to a SCPI instrument, then asynchronously wait
+ for a response as an ASCII string.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.IScpiInstrument">
+<summary>
+ An instrument capable of receiving and acting on SCPI commands.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.clear(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Issue the clear state command to the instrument.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.reset(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Issue the reset command to the instrument.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.datablock(System.Byte[])">
+<summary>
+ Convert a block of data into the SCPI datablock format by prepending the datablock
+ character, the number of digits in the length and the length.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.addTerminator(Endorphin.Core.SCPI.IScpiInstrument,System.Byte[])">
+<summary>
+ Add the instrument&apos;s terminator to the byte array.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.utf8(System.Byte[])">
+<summary>
+ Convert an array of bytes into a .NET string.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.bytes(System.String)">
+<summary>
+ Convert a .NET string into an array of bytes.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.trim(System.String)">
+<summary>
+ Trim any leading or ending whitespace from a string.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.InvalidResponseException">
+<summary>
+ The machine returned an invalid response to a query.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.identity(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Get the identity of an instrument.
+
+ Throws SCPI.InvalidResponseException if the response does not match the SCPI spec.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.errors(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Check the queue for errors, returning None if no errors are found or a Some value
+ with the entire sequence of errors if some exist.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.error(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Get a single error from the error queue.
+
+ Throws SCPI.InvalidResponseException if the response does not match the SCPI spec.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.querier(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Generic query function for internal use - adds the instrument&apos;s terminator
+ then submits the block.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.verbatim(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Send a byte array to the instrument verbatim, and asynchronously await its
+ response.  No additional processing happens at either end.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.bool(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;bool&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.double(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;double&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.single(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;single&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.float(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;float&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.float32(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;float32&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.decimal(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;decimal&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.sbyte(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;sbyte&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.byte(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;byte&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.char(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;char&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.uint64(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;uint64&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.uint32(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;uint32&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.uint16(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;uint16&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.uint8(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;uint8&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.int64(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;int64&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.int32(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;int32&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.int16(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;int16&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.int8(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;int8&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.string(System.String)">
+<summary>
+ Query the instrument with a given key, then parse the result into
+ the primitive .NET type &quot;string&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.parsed``1(Microsoft.FSharp.Core.FSharpFunc{System.String,``0},System.String,Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Query the isntrument with a given key, then parse the result from
+ a UTF-8 string using the passed parser.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Key.raw(System.String,Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Query the instrument with a given key, then return the raw ASCII
+ string read from the machine.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Query.Key">
+<summary>
+ Functions for querying SCPI instruments by key only, e.g., &quot;:SYSTEM:ERROR?&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.bool``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;bool&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.double``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;double&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.single``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;single&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.float``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;float&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.float32``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;float32&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.decimal``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;decimal&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.sbyte``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;sbyte&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.byte``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;byte&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.char``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;char&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.uint64``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;uint64&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.uint32``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;uint32&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.uint16``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;uint16&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.uint8``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;uint8&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.int64``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;int64&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.int32``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;int32&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.int16``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;int16&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.int8``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;int8&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.string``1(System.String,``0)">
+<summary>
+ Query the instrument with a given key and value, then parse the result into
+ the primitive .NET type &quot;string&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.parsed``2(Microsoft.FSharp.Core.FSharpFunc{System.String,``0},System.String,``1,Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Query the isntrument with a given key and value, then parse the result from
+ a UTF-8 string using the passed parser.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Query.Value.raw``1(System.String,``0,Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Query the instrument with a given key and value, then return the raw ASCII
+ string read from the machine.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Query.Value">
+<summary>
+ Functions to query SCPI instruments where the query takes some value as a parameter,
+ e.g., &quot;:FILE:EXISTS? &apos;testfile.out&apos;&quot;.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Query">
+<summary>
+ Functions for querying SCPI instruments, expecting an asynchronus response.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Set.key(System.String,Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Write a key with no value to an instrument, e.g., &quot;*RST&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Set.value``1(System.String,``0,Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Write a key with a value to an instrument, where the value will be converted
+ by calling its &quot;ToString()&quot; method.  SCPI command e.g., &quot;:POWER 12.0&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Set.writer(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Generic write function, which adds a terminator to the byte array, then sends
+ it to the instrument.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.Set.verbatim(Endorphin.Core.SCPI.IScpiInstrument)">
+<summary>
+ Send a byte array to the instrument verbatim, with no preprocessing.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Set">
+<summary>
+ Functions for writing &quot;set&quot; commands to SCPI instruments with no expected responses,
+ e.g., &quot;*RST&quot;.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.concat(System.Collections.Generic.IEnumerable{System.Byte[]})">
+<summary>
+ Concatenate a list of SCPI commands into one single ASCII string that may be
+ sent to a machine in one go.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.append(System.Byte[],System.Byte[])">
+<summary>
+ Append one SCPI command to another.  The command passed as the first argument
+ (&quot;after&quot;), will be after the command passed as the second argument (&quot;before&quot;).
+ This is intended for F# piping.  For the other order, see SCPI.String.join.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.join(System.Byte[],System.Byte[])">
+<summary>
+ Append one SCPI command to another.  The command passed as the first argument
+ (&quot;before&quot;), will be before the command passed as the second argument (&quot;after&quot;).
+ For use in F# pipes, see SCPI.String.append.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.addValue(System.Object,System.String)">
+<summary>
+ Add a value onto a currently existing key or query, where the text
+ representation of the value is found by calling its ToString() method.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.Query.key(System.String)">
+<summary>
+ Create the string to query a key with no value.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.Query.value``1(System.String,``0)">
+<summary>
+ Create the string to query a given key with the given value, where the value
+ string is found by calling its ToString() method.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.String.Query">
+<summary>
+ Create ASCII strings to query the instrument with keys and values.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.Set.key(System.String)">
+<summary>
+ Create the string for a key and no value.
+</summary>
+</member>
+<member name="M:Endorphin.Core.SCPI.String.Set.value``1(System.String,``0)">
+<summary>
+ Create the string to set a given key to a given value, where the value to be
+ written is found by calling its ToString() method.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.String.Set">
+<summary>
+ Create ASCII strings to set keys to values.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.String">
+<summary>
+ Functions for building SCPI commands into ASCII byte arrays for sending to
+ machines.
+</summary>
+</member>
+<member name="P:Endorphin.Core.SCPI.Key.error">
+<summary>
+ SCPI string to query the error queue for the next error.
+</summary>
+</member>
+<member name="P:Endorphin.Core.SCPI.Key.clear">
+<summary>
+ SCPI string to instruct an instrument to clear its status.
+</summary>
+</member>
+<member name="P:Endorphin.Core.SCPI.Key.reset">
+<summary>
+ SCPI string to instruct an instrument to reset.
+</summary>
+</member>
+<member name="P:Endorphin.Core.SCPI.Key.identify">
+<summary>
+ SCPI string to query an instrument for its identity, without the trailing
+ question mark (for use with String.query or Access.String.query).
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI.Key">
+<summary>
+ Keys for use with SCPI commands.
+</summary>
+</member>
+<member name="T:Endorphin.Core.SCPI">
+<summary>
+ Functions for working with SCPI commands and instruments.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.rad">
+<summary>
+ Radians
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.deg">
+<summary>
+ Degrees
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.pct">
+<summary>
+ Percent
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.GHz">
+<summary>
+ GHz (cycles per nanosecond)
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.MHz">
+<summary>
+ MHz (cycles per microsecond)
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.kHz">
+<summary>
+ kHz (cycles per millisecond)
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Hz">
+<summary>
+ Hz (cycles per second)
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.dB">
+<summary>
+ dB decibels
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.dBm">
+<summary>
+ dBm i.e. decibels with respect to 1 mW of power
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.sf">
+<summary>
+ Significant figures.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.dp">
+<summary>
+ Decimal places.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.step">
+<summary>
+ Number of digital steps.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.bit">
+<summary>
+ Binary bits.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Time.ms">
+<summary>
+ Milliseconds.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Time.us">
+<summary>
+ Microseconds.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Time.ns">
+<summary>
+ Nanoseconds.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Time.ps">
+<summary>
+ Picoseconds.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Time.fs">
+<summary>
+ Femtoseconds.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Length.nm">
+<summary>
+ Nanometre.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Length.um">
+<summary>
+ Micrometre.
+</summary>
+</member>
+<member name="T:Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.Units.Length.mm">
+<summary>
+ Millimetre.
+</summary>
+</member>
+</members>
+</doc>

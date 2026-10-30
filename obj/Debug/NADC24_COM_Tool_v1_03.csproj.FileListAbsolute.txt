@@ -1,0 +1,29 @@
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Nuvoton PSU Meter.exe.config
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Nuvoton PSU Meter.exe
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Nuvoton PSU Meter.pdb
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Endorphin.Core.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Endorphin.Core.NationalInstruments.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\EPPlus.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\EPPlus.Interfaces.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\EPPlus.System.Drawing.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\FSharp.Core.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Ivi.Visa.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\log4net.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Microsoft.IO.RecyclableMemoryStream.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\NationalInstruments.Visa.dll
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Endorphin.Core.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Endorphin.Core.NationalInstruments.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\EPPlus.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\FSharp.Core.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Ivi.Visa.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\log4net.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\Microsoft.IO.RecyclableMemoryStream.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\bin\Debug\NationalInstruments.Visa.xml
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\NADC24_COM_Tool_v1_03.csproj.AssemblyReference.cache
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\NADC_COM_Tool_v1_00.Form1.resources
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\Nuvoton_PSU_Meter.Properties.Resources.resources
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\NADC24_COM_Tool_v1_03.csproj.GenerateResource.cache
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\NADC24_COM_Tool_v1_03.csproj.CoreCompileInputs.cache
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\NADC24_C.8EF8895F.Up2Date
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\Nuvoton PSU Meter.exe
+C:\All_UI_Projects\NADC24_COM_Tool_v1_03\obj\Debug\Nuvoton PSU Meter.pdb
