@@ -1875,8 +1875,73 @@ namespace NADC_COM_Tool_v1_00
                 {
                     using (var rm = new NationalInstruments.Visa.ResourceManager())
                     {
-                        var resources = rm.Find("USB?*INSTR");
-                        foreach (string resource in resources)
+                        // 不只掃 USB：有些儀器在不同驅動/介面下會出現在 GPIB/TCPIP/ASRL。
+                        var patterns = new[]
+                        {
+                            "USB?*INSTR",
+                            "GPIB?*INSTR",
+                            "TCPIP?*INSTR",
+                            "ASRL?*INSTR",
+                            "?*INSTR",
+                            "?*SOCKET",
+                        };
+
+                        var allResources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var p in patterns)
+                        {
+                            try
+                            {
+                                foreach (string r in rm.Find(p)) allResources.Add(r);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"VISA Find({p}) failed: {ex.Message}");
+                            }
+                        }
+
+                        // 有些 VISA Runtime 對特定樣式回空集合，改用最寬鬆查詢再補一次。
+                        if (allResources.Count == 0)
+                        {
+                            try
+                            {
+                                foreach (string r in rm.Find("?*")) allResources.Add(r);
+                                Console.WriteLine($"VISA fallback Find(?*) -> {allResources.Count} resource(s)");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("VISA fallback Find(?*) failed: " + ex.Message);
+                            }
+                        }
+
+                        // 若 VISA 列舉仍為空，補上系統 COM 埠對應的 VISA ASRL 資源，
+                        // 讓使用者至少能在下拉看到並嘗試以 ASRL 連線。
+                        if (allResources.Count == 0)
+                        {
+                            try
+                            {
+                                foreach (string port in SerialPort.GetPortNames())
+                                {
+                                    string digits = new string(port.Where(char.IsDigit).ToArray());
+                                    if (!string.IsNullOrEmpty(digits))
+                                        allResources.Add($"ASRL{digits}::INSTR");
+                                }
+                                Console.WriteLine($"VISA fallback COM->ASRL -> {allResources.Count} resource(s)");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("VISA fallback COM->ASRL failed: " + ex.Message);
+                            }
+                        }
+
+                        if (allResources.Count == 0)
+                        {
+                            SetStatus(StatusLevel.Warn,
+                                      "No VISA resources found. Check NI-VISA / VISA passport / instrument USB mode.");
+                            Console.WriteLine("VISA scan: no resources matched USB/GPIB/TCPIP/ASRL/INSTR/SOCKET patterns.");
+                        }
+
+                        var scanned = new List<(string Resource, string Idn, VisaDevice Device)>();
+                        foreach (string resource in allResources)
                         {
                             string idn = QueryIdn(rm, resource);
                             string displayName = resource;
@@ -1886,33 +1951,50 @@ namespace NADC_COM_Tool_v1_00
                                 if (parts.Length >= 2)
                                     displayName = $"{parts[0].Trim()} {parts[1].Trim()} ({resource})";
                             }
-                            var device = new VisaDevice(resource, displayName);
+                            scanned.Add((resource, idn, new VisaDevice(resource, displayName)));
+                        }
 
-                            // 依 USB PID / IDN 型號判斷裝置型別，只把裝置放進對應的下拉：
-                            //  - Chroma DC load  → PID 0x0879 → 只加到 dc_load_cbb
-                            //  - 功率計(Chroma 66xxx PID 0x0835 / Yokogawa) → 只加到 power_meter_cbb
-                            //  - 無法判別 → 兩邊都加，讓使用者自選
-                            bool isDcLoad = IsDcLoadDevice(resource, idn);
-                            bool isPowerMeter = IsPowerMeterDevice(resource, idn);
-                            if (!isDcLoad && !isPowerMeter) { isDcLoad = true; isPowerMeter = true; }
+                        // 先掃 DC Load，再掃 Power Meter（依使用者操作習慣固定順序）。
+                        foreach (var item in scanned)
+                        {
+                            bool isDcLoad = IsDcLoadDevice(item.Resource, item.Idn);
+                            bool isPowerMeter = IsPowerMeterDevice(item.Resource, item.Idn);
+                            if (!isDcLoad && !isPowerMeter) isDcLoad = true;
 
-                            if (isDcLoad) { AddOrUpgradeDevice(dc_load_cbb, device); foundDcLoads.Add(resource); }
-                            if (isPowerMeter) { AddOrUpgradeDevice(power_meter_cbb, device); foundPowerMeters.Add(resource); }
+                            if (isDcLoad)
+                            {
+                                AddOrUpgradeDevice(dc_load_cbb, item.Device);
+                                foundDcLoads.Add(item.Resource);
+                            }
+                        }
+
+                        foreach (var item in scanned)
+                        {
+                            bool isDcLoad = IsDcLoadDevice(item.Resource, item.Idn);
+                            bool isPowerMeter = IsPowerMeterDevice(item.Resource, item.Idn);
+                            if (!isDcLoad && !isPowerMeter) isPowerMeter = true;
+
+                            if (isPowerMeter)
+                            {
+                                AddOrUpgradeDevice(power_meter_cbb, item.Device);
+                                foundPowerMeters.Add(item.Resource);
+                            }
                         }
                     }
-                    SetStatus(StatusLevel.Info, "VISA scan complete.");
+                    SetStatus(StatusLevel.Info,
+                              $"VISA scan complete. DC Load: {dc_load_cbb.Items.Count}, Power Meter: {power_meter_cbb.Items.Count}");
                 }
                 catch (Exception ex) when (
                     ex is DllNotFoundException ||
                     ex is TypeInitializationException ||
                     ex is BadImageFormatException)
                 {
-                    SetStatus(StatusLevel.Warn, "NI-VISA driver not installed - USB scan skipped.");
+                    SetStatus(StatusLevel.Warn, "NI-VISA driver not installed - VISA scan skipped.");
                     Console.WriteLine("NI-VISA not available: " + ex.Message);
                 }
                 catch (Exception ex)
                 {
-                    SetStatus(StatusLevel.Warn, "No USB VISA instruments found.");
+                    SetStatus(StatusLevel.Warn, "No VISA instruments found.");
                     Console.WriteLine("VISA scan: " + ex.Message);
                 }
 
@@ -2946,7 +3028,7 @@ namespace NADC_COM_Tool_v1_00
         private string DcLoadSetCurrentCommand(double amps)
         {
             var cs = dcLoadCommands ?? DcLoadCommandSets[0];
-            return cs.SetCurrent + " " + amps.ToString("0.##", CultureInfo.InvariantCulture);
+            return cs.SetCurrent + " " + amps.ToString("0.####", CultureInfo.InvariantCulture);
         }
 
         // 掃描開頭開負載：先切模式（需要的機種）、電流歸零，最後才開輸出 ——
@@ -3023,9 +3105,174 @@ namespace NADC_COM_Tool_v1_00
             // 掃描進行中，這顆按鈕的身分是 Stop
             if (SweepRunning) { RequestStopSweep(); return; }
 
-            // Chroma 66202 不支援 MEAS:xxx:DC? 命令，DC 模式也一律用 RMS 命令讀取，
-            // 因此 DC Value 與 RMS Value 走的是同一段流程。
-            await RunLoadSweepAsync(button14, button12, "button14_Click");
+            await RunPowerTo100WSweepAsync(button14, button12, "button14_Click");
+        }
+
+        // 量測值字串容錯解析：先吃 Invariant（儀器常回 1.23E+02），再吃當地格式。
+        private static bool TryParseMeterValue(string text, out double value)
+        {
+            string s = (text ?? "").Trim();
+            if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return true;
+            if (double.TryParse(s, NumberStyles.Float, CultureInfo.CurrentCulture, out value)) return true;
+            value = 0;
+            return false;
+        }
+
+        /// <summary>
+        /// 目標功率掃描：由 0W 開始，逐步調整 DC Load 電流，直到功率計讀值接近 100W。
+        /// </summary>
+        async private Task RunPowerTo100WSweepAsync(Button owner, Button other, string context)
+        {
+            if (!VisaConnected)
+            {
+                ShowVisaNotConnected("VISA instruments");
+                return;
+            }
+
+            BeginSweepUi(owner, other);
+            CancellationToken ct = sweepCts.Token;
+
+            const double targetPowerW = 100.0;
+            const double toleranceW = 0.1;
+            const int stableNeeded = 20; // 50ms 週期下，連續約 1 秒穩定視為已鎖定
+
+            try
+            {
+                if (!TurnOnDcLoad()) return;
+
+                double maxCurrent;
+                if (!TryParseCurrent(curr_100p_box.Text, out maxCurrent) || maxCurrent <= 0)
+                {
+                    ShowSweepInputError("100% Current", curr_100p_box.Text, "a positive number, e.g. 6.96");
+                    return;
+                }
+
+                int delaySec;
+                if (!int.TryParse(delay_sec_box.Text.Trim(), out delaySec) || delaySec < 0 || delaySec > 3600)
+                {
+                    ShowSweepInputError("Delay (sec)", delay_sec_box.Text, "an integer from 0 to 3600");
+                    return;
+                }
+
+                // To 100W 模式：每 50ms 更新一次，持續維持在 100W（直到按 Stop）。
+                int waitMs = 100;
+                const double rampStepA = 0.10; // <95W 時每次加 0.2A
+                const double fineStepA = 0.002; // >=95W 後每次微調 0.005A
+                const double coarseThresholdW = 95.0;
+                const double holdDeadbandW = 0.10;
+
+                MessageBasedSession load = RequireDcLoadSession();
+                if (load == null) return;
+                MessageBasedSession meter = RequirePowerMeterSession();
+                if (meter == null) return;
+
+                double currentA = Math.Min(3.5, maxCurrent);
+                VisaWrite(load, DcLoadSetCurrentCommand(currentA));
+
+                var powerWindow = new Queue<double>();
+                const int powerWindowSize = 5;
+                int stableCount = 0;
+                bool holdAnnounced = false;
+
+                while (true)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    await Task.Delay(waitMs, ct);
+
+                    ReadPowerMeterRaw(meter, out string voltageResp, out string currentResp, out string powerResp);
+
+                    TryParseMeterValue(voltageResp, out double voltageV);
+                    TryParseMeterValue(currentResp, out double currentMeterA);
+                    bool okPower = TryParseMeterValue(powerResp, out double powerW);
+
+                    chroma_box.Clear();
+                    chroma_box.AppendText($"Target P: {targetPowerW:F1} W\n");
+                    chroma_box.AppendText($"Set I: {currentA:F3} A\n");
+                    chroma_box.AppendText($"V: {voltageV:F3}\nI: {currentMeterA:F5}\nP: {(okPower ? powerW.ToString("F3", CultureInfo.InvariantCulture) : powerResp.Trim())}\n");
+
+                    if (!okPower)
+                    {
+                        SetStatus(StatusLevel.Warn, "Power Meter returned non-numeric power, retrying...");
+                        continue;
+                    }
+
+                    powerWindow.Enqueue(powerW);
+                    if (powerWindow.Count > powerWindowSize) powerWindow.Dequeue();
+                    double avgPowerW = powerWindow.Average();
+
+                    double errorW = targetPowerW - avgPowerW;
+                    SetStatus(StatusLevel.Info,
+                              $"Power sweep: P={powerW:F2}W (avg {avgPowerW:F2}W), I={currentA:F3}A, Err={errorW:F2}W");
+
+                    if (Math.Abs(errorW) <= toleranceW)
+                    {
+                        if (stableCount < stableNeeded) stableCount++;
+                        chroma_box.AppendText($"Stable: {stableCount}/{stableNeeded}\n");
+                        if (stableCount >= stableNeeded && !holdAnnounced)
+                        {
+                            SetStatus(StatusLevel.Info,
+                                      $"Power hold active near 100W: avg {avgPowerW:F2}W at {currentA:F3}A (press Stop to end).");
+                            holdAnnounced = true;
+                        }
+                    }
+                    else
+                    {
+                        stableCount = 0;
+                        holdAnnounced = false;
+                    }
+
+                    // 控制策略：
+                    //  1) 95W 前快速拉升，每次 +0.2A
+                    //  2) 95W 後改為 ±0.005A 微調到 100W
+                    //  3) 在 99.9~100.1W 內就維持電流不變
+                    if (avgPowerW < coarseThresholdW)
+                    {
+                        currentA += rampStepA;
+                    }
+                    else
+                    {
+                        if (Math.Abs(errorW) <= holdDeadbandW)
+                            continue;
+
+                        if (errorW > 0) currentA += fineStepA;
+                        else currentA -= fineStepA;
+                    }
+
+                    if (currentA < 0) currentA = 0;
+                    if (currentA > maxCurrent)
+                    {
+                        currentA = maxCurrent;
+                        VisaWrite(load, DcLoadSetCurrentCommand(currentA));
+                        SetStatus(StatusLevel.Warn, $"Reached max current {maxCurrent:F2}A before hitting 100W.");
+                        break;
+                    }
+
+                    currentA = Math.Round(currentA, 4, MidpointRounding.AwayFromZero);
+                    VisaWrite(load, DcLoadSetCurrentCommand(currentA));
+
+                    string setErr = DcLoadErrorText(load);
+                    if (setErr != null)
+                    {
+                        SetStatus(StatusLevel.Error, $"DC Load rejected current command: {setErr}");
+                        break;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                SetStatus(StatusLevel.Warn, "Power sweep stopped. DC Load OFF.");
+                Console.WriteLine("Power sweep stopped by user.");
+            }
+            catch (VisaException ex)
+            {
+                ShowVisaError(ex, context);
+            }
+            finally
+            {
+                TurnOffDcLoad();
+                EndSweepUi(other);
+            }
         }
 
         // 電流輸入兩種寫法都收：先試 "6.96"（不分地區），再試當地地區設定的寫法。
@@ -3344,7 +3591,7 @@ namespace NADC_COM_Tool_v1_00
 
         private void button15_Click(object sender, EventArgs e)
         {
-            if (serialPort1.IsOpen)
+            if (VisaConnected)
             {
                 try
                 {
@@ -3374,11 +3621,15 @@ namespace NADC_COM_Tool_v1_00
                     ShowVisaError(ex, "button15_Click");
                 }
             }
+            else
+            {
+                ShowVisaNotConnected("Power Meter");
+            }
         }
 
         private void button17_Click(object sender, EventArgs e)
         {
-            if (serialPort1.IsOpen)
+            if (VisaConnected)
             {
                 try
                 {
@@ -3407,6 +3658,10 @@ namespace NADC_COM_Tool_v1_00
                 {
                     ShowVisaError(ex, "button17_Click");
                 }
+            }
+            else
+            {
+                ShowVisaNotConnected("Power Meter");
             }
         }
 
@@ -4475,7 +4730,7 @@ namespace NADC_COM_Tool_v1_00
 
         private void button8_Click(object sender, EventArgs e)
         {
-            if (serialPort1.IsOpen)
+            if (VisaConnected)
             {
                 try
                 {
@@ -4505,12 +4760,16 @@ namespace NADC_COM_Tool_v1_00
                     ShowVisaError(ex, "button8_Click");
                 }
             }
+            else
+            {
+                ShowVisaNotConnected("Power Meter");
+            }
         }
 
 
         private void button16_Click(object sender, EventArgs e)
         {
-            if (serialPort1.IsOpen)
+            if (VisaConnected)
             {
                 try
                 {
@@ -4539,6 +4798,10 @@ namespace NADC_COM_Tool_v1_00
                 {
                     ShowVisaError(ex, "button16_Click");
                 }
+            }
+            else
+            {
+                ShowVisaNotConnected("Power Meter");
             }
         }
 

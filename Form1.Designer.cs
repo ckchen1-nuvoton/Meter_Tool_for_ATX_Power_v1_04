@@ -30,15 +30,15 @@
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea1 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend1 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea2 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend2 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series2 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea3 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend3 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series3 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea7 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend7 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series7 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea8 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend8 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series8 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea9 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend9 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series9 = new System.Windows.Forms.DataVisualization.Charting.Series();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.connection_btn = new System.Windows.Forms.Button();
@@ -253,7 +253,7 @@
             this.label1.Location = new System.Drawing.Point(69, 36);
             this.label1.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(55, 24);
+            this.label1.Size = new System.Drawing.Size(43, 19);
             this.label1.TabIndex = 1;
             this.label1.Text = "Port :";
             // 
@@ -265,7 +265,7 @@
             this.port_cbb.Location = new System.Drawing.Point(120, 33);
             this.port_cbb.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.port_cbb.Name = "port_cbb";
-            this.port_cbb.Size = new System.Drawing.Size(304, 32);
+            this.port_cbb.Size = new System.Drawing.Size(304, 27);
             this.port_cbb.TabIndex = 0;
             // 
             // rescan_port_btn
@@ -299,10 +299,10 @@
             this.page_monitor.Controls.Add(this.groupBox6);
             this.page_monitor.Controls.Add(this.groupBox7);
             this.page_monitor.Controls.Add(this.groupBox5);
-            this.page_monitor.Location = new System.Drawing.Point(4, 31);
+            this.page_monitor.Location = new System.Drawing.Point(4, 27);
             this.page_monitor.Name = "page_monitor";
             this.page_monitor.Padding = new System.Windows.Forms.Padding(3);
-            this.page_monitor.Size = new System.Drawing.Size(613, 459);
+            this.page_monitor.Size = new System.Drawing.Size(613, 463);
             this.page_monitor.TabIndex = 0;
             this.page_monitor.Text = "Monitor";
             this.page_monitor.UseVisualStyleBackColor = true;
@@ -321,21 +321,21 @@
             // chart1
             // 
             this.chart1.BackColor = System.Drawing.Color.Transparent;
-            chartArea1.Name = "ChartArea1";
-            this.chart1.ChartAreas.Add(chartArea1);
+            chartArea7.Name = "ChartArea1";
+            this.chart1.ChartAreas.Add(chartArea7);
             this.chart1.Dock = System.Windows.Forms.DockStyle.Fill;
-            legend1.Enabled = false;
-            legend1.Name = "Legend1";
-            this.chart1.Legends.Add(legend1);
-            this.chart1.Location = new System.Drawing.Point(3, 28);
+            legend7.Enabled = false;
+            legend7.Name = "Legend1";
+            this.chart1.Legends.Add(legend7);
+            this.chart1.Location = new System.Drawing.Point(3, 23);
             this.chart1.Name = "chart1";
-            series1.ChartArea = "ChartArea1";
-            series1.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Spline;
-            series1.Color = System.Drawing.Color.Blue;
-            series1.Legend = "Legend1";
-            series1.Name = "Series1";
-            this.chart1.Series.Add(series1);
-            this.chart1.Size = new System.Drawing.Size(599, 117);
+            series7.ChartArea = "ChartArea1";
+            series7.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Spline;
+            series7.Color = System.Drawing.Color.Blue;
+            series7.Legend = "Legend1";
+            series7.Name = "Series1";
+            this.chart1.Series.Add(series7);
+            this.chart1.Size = new System.Drawing.Size(599, 122);
             this.chart1.TabIndex = 7;
             this.chart1.Text = "chart1";
             // 
@@ -353,21 +353,21 @@
             // chart2
             // 
             this.chart2.BackColor = System.Drawing.Color.Transparent;
-            chartArea2.Name = "ChartArea1";
-            this.chart2.ChartAreas.Add(chartArea2);
+            chartArea8.Name = "ChartArea1";
+            this.chart2.ChartAreas.Add(chartArea8);
             this.chart2.Dock = System.Windows.Forms.DockStyle.Fill;
-            legend2.Enabled = false;
-            legend2.Name = "Legend1";
-            this.chart2.Legends.Add(legend2);
-            this.chart2.Location = new System.Drawing.Point(3, 28);
+            legend8.Enabled = false;
+            legend8.Name = "Legend1";
+            this.chart2.Legends.Add(legend8);
+            this.chart2.Location = new System.Drawing.Point(3, 23);
             this.chart2.Name = "chart2";
-            series2.ChartArea = "ChartArea1";
-            series2.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Spline;
-            series2.Color = System.Drawing.Color.Lime;
-            series2.Legend = "Legend1";
-            series2.Name = "Series1";
-            this.chart2.Series.Add(series2);
-            this.chart2.Size = new System.Drawing.Size(599, 117);
+            series8.ChartArea = "ChartArea1";
+            series8.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Spline;
+            series8.Color = System.Drawing.Color.Lime;
+            series8.Legend = "Legend1";
+            series8.Name = "Series1";
+            this.chart2.Series.Add(series8);
+            this.chart2.Size = new System.Drawing.Size(599, 122);
             this.chart2.TabIndex = 7;
             this.chart2.Text = "chart2";
             // 
@@ -385,21 +385,21 @@
             // chart3
             // 
             this.chart3.BackColor = System.Drawing.Color.Transparent;
-            chartArea3.Name = "ChartArea1";
-            this.chart3.ChartAreas.Add(chartArea3);
+            chartArea9.Name = "ChartArea1";
+            this.chart3.ChartAreas.Add(chartArea9);
             this.chart3.Dock = System.Windows.Forms.DockStyle.Fill;
-            legend3.Enabled = false;
-            legend3.Name = "Legend1";
-            this.chart3.Legends.Add(legend3);
-            this.chart3.Location = new System.Drawing.Point(3, 28);
+            legend9.Enabled = false;
+            legend9.Name = "Legend1";
+            this.chart3.Legends.Add(legend9);
+            this.chart3.Location = new System.Drawing.Point(3, 23);
             this.chart3.Name = "chart3";
-            series3.ChartArea = "ChartArea1";
-            series3.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Spline;
-            series3.Color = System.Drawing.Color.Lime;
-            series3.Legend = "Legend1";
-            series3.Name = "Series1";
-            this.chart3.Series.Add(series3);
-            this.chart3.Size = new System.Drawing.Size(599, 117);
+            series9.ChartArea = "ChartArea1";
+            series9.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Spline;
+            series9.Color = System.Drawing.Color.Lime;
+            series9.Legend = "Legend1";
+            series9.Name = "Series1";
+            this.chart3.Series.Add(series9);
+            this.chart3.Size = new System.Drawing.Size(599, 122);
             this.chart3.TabIndex = 7;
             this.chart3.Text = "chart3";
             // 
@@ -450,10 +450,10 @@
             this.page_flash.Controls.Add(this.label32);
             this.page_flash.Controls.Add(this.status_box);
             this.page_flash.Controls.Add(this.button19);
-            this.page_flash.Location = new System.Drawing.Point(4, 31);
+            this.page_flash.Location = new System.Drawing.Point(4, 27);
             this.page_flash.Name = "page_flash";
             this.page_flash.Padding = new System.Windows.Forms.Padding(3);
-            this.page_flash.Size = new System.Drawing.Size(613, 459);
+            this.page_flash.Size = new System.Drawing.Size(613, 463);
             this.page_flash.TabIndex = 0;
             this.page_flash.Text = "Chip Flash";
             this.page_flash.UseVisualStyleBackColor = true;
@@ -465,7 +465,7 @@
             this.label19.Location = new System.Drawing.Point(319, 113);
             this.label19.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label19.Name = "label19";
-            this.label19.Size = new System.Drawing.Size(77, 24);
+            this.label19.Size = new System.Drawing.Size(62, 19);
             this.label19.TabIndex = 66;
             this.label19.Text = "P3 Vrms";
             // 
@@ -476,7 +476,7 @@
             this.p3_vrms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p3_vrms_box.Name = "p3_vrms_box";
             this.p3_vrms_box.ReadOnly = true;
-            this.p3_vrms_box.Size = new System.Drawing.Size(108, 32);
+            this.p3_vrms_box.Size = new System.Drawing.Size(108, 27);
             this.p3_vrms_box.TabIndex = 65;
             // 
             // button2
@@ -498,7 +498,7 @@
             this.label20.Location = new System.Drawing.Point(319, 153);
             this.label20.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label20.Name = "label20";
-            this.label20.Size = new System.Drawing.Size(71, 24);
+            this.label20.Size = new System.Drawing.Size(57, 19);
             this.label20.TabIndex = 69;
             this.label20.Text = "P3 Irms";
             // 
@@ -509,7 +509,7 @@
             this.p3_irms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p3_irms_box.Name = "p3_irms_box";
             this.p3_irms_box.ReadOnly = true;
-            this.p3_irms_box.Size = new System.Drawing.Size(108, 32);
+            this.p3_irms_box.Size = new System.Drawing.Size(108, 27);
             this.p3_irms_box.TabIndex = 68;
             // 
             // button7
@@ -531,7 +531,7 @@
             this.label42.Location = new System.Drawing.Point(319, 193);
             this.label42.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label42.Name = "label42";
-            this.label42.Size = new System.Drawing.Size(73, 24);
+            this.label42.Size = new System.Drawing.Size(60, 19);
             this.label42.TabIndex = 72;
             this.label42.Text = "P3 Pavg";
             // 
@@ -542,7 +542,7 @@
             this.p3_pavg_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p3_pavg_box.Name = "p3_pavg_box";
             this.p3_pavg_box.ReadOnly = true;
-            this.p3_pavg_box.Size = new System.Drawing.Size(108, 32);
+            this.p3_pavg_box.Size = new System.Drawing.Size(108, 27);
             this.p3_pavg_box.TabIndex = 71;
             // 
             // button9
@@ -564,7 +564,7 @@
             this.label43.Location = new System.Drawing.Point(319, 233);
             this.label43.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label43.Name = "label43";
-            this.label43.Size = new System.Drawing.Size(77, 24);
+            this.label43.Size = new System.Drawing.Size(62, 19);
             this.label43.TabIndex = 75;
             this.label43.Text = "P4 Vrms";
             // 
@@ -575,7 +575,7 @@
             this.p4_vrms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p4_vrms_box.Name = "p4_vrms_box";
             this.p4_vrms_box.ReadOnly = true;
-            this.p4_vrms_box.Size = new System.Drawing.Size(108, 32);
+            this.p4_vrms_box.Size = new System.Drawing.Size(108, 27);
             this.p4_vrms_box.TabIndex = 74;
             // 
             // button18
@@ -597,7 +597,7 @@
             this.label44.Location = new System.Drawing.Point(319, 276);
             this.label44.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label44.Name = "label44";
-            this.label44.Size = new System.Drawing.Size(71, 24);
+            this.label44.Size = new System.Drawing.Size(57, 19);
             this.label44.TabIndex = 78;
             this.label44.Text = "P4 Irms";
             // 
@@ -608,7 +608,7 @@
             this.p4_irms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p4_irms_box.Name = "p4_irms_box";
             this.p4_irms_box.ReadOnly = true;
-            this.p4_irms_box.Size = new System.Drawing.Size(108, 32);
+            this.p4_irms_box.Size = new System.Drawing.Size(108, 27);
             this.p4_irms_box.TabIndex = 77;
             // 
             // button20
@@ -630,7 +630,7 @@
             this.label45.Location = new System.Drawing.Point(319, 316);
             this.label45.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label45.Name = "label45";
-            this.label45.Size = new System.Drawing.Size(73, 24);
+            this.label45.Size = new System.Drawing.Size(60, 19);
             this.label45.TabIndex = 81;
             this.label45.Text = "P4 Pavg";
             // 
@@ -641,7 +641,7 @@
             this.p4_pavg_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p4_pavg_box.Name = "p4_pavg_box";
             this.p4_pavg_box.ReadOnly = true;
-            this.p4_pavg_box.Size = new System.Drawing.Size(108, 32);
+            this.p4_pavg_box.Size = new System.Drawing.Size(108, 27);
             this.p4_pavg_box.TabIndex = 80;
             // 
             // button21
@@ -663,7 +663,7 @@
             this.label17.Location = new System.Drawing.Point(47, 31);
             this.label17.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label17.Name = "label17";
-            this.label17.Size = new System.Drawing.Size(70, 24);
+            this.label17.Size = new System.Drawing.Size(56, 19);
             this.label17.TabIndex = 11;
             this.label17.Text = "Chip ID";
             // 
@@ -674,7 +674,7 @@
             this.chip_ssid_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.chip_ssid_box.Name = "chip_ssid_box";
             this.chip_ssid_box.ReadOnly = true;
-            this.chip_ssid_box.Size = new System.Drawing.Size(108, 32);
+            this.chip_ssid_box.Size = new System.Drawing.Size(108, 27);
             this.chip_ssid_box.TabIndex = 4;
             // 
             // chip_ssid_btn
@@ -696,7 +696,7 @@
             this.label18.Location = new System.Drawing.Point(46, 72);
             this.label18.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label18.Name = "label18";
-            this.label18.Size = new System.Drawing.Size(72, 24);
+            this.label18.Size = new System.Drawing.Size(57, 19);
             this.label18.TabIndex = 15;
             this.label18.Text = "FW Ver.";
             // 
@@ -707,7 +707,7 @@
             this.fw_ver_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.fw_ver_box.Name = "fw_ver_box";
             this.fw_ver_box.ReadOnly = true;
-            this.fw_ver_box.Size = new System.Drawing.Size(108, 32);
+            this.fw_ver_box.Size = new System.Drawing.Size(108, 27);
             this.fw_ver_box.TabIndex = 14;
             // 
             // fw_ver_btn
@@ -729,7 +729,7 @@
             this.label36.Location = new System.Drawing.Point(46, 113);
             this.label36.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label36.Name = "label36";
-            this.label36.Size = new System.Drawing.Size(77, 24);
+            this.label36.Size = new System.Drawing.Size(62, 19);
             this.label36.TabIndex = 30;
             this.label36.Text = "P1 Vrms";
             // 
@@ -740,7 +740,7 @@
             this.p1_vrms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p1_vrms_box.Name = "p1_vrms_box";
             this.p1_vrms_box.ReadOnly = true;
-            this.p1_vrms_box.Size = new System.Drawing.Size(108, 32);
+            this.p1_vrms_box.Size = new System.Drawing.Size(108, 27);
             this.p1_vrms_box.TabIndex = 29;
             // 
             // button13
@@ -762,7 +762,7 @@
             this.label35.Location = new System.Drawing.Point(46, 153);
             this.label35.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label35.Name = "label35";
-            this.label35.Size = new System.Drawing.Size(71, 24);
+            this.label35.Size = new System.Drawing.Size(57, 19);
             this.label35.TabIndex = 33;
             this.label35.Text = "P1 Irms";
             // 
@@ -773,7 +773,7 @@
             this.p1_irms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p1_irms_box.Name = "p1_irms_box";
             this.p1_irms_box.ReadOnly = true;
-            this.p1_irms_box.Size = new System.Drawing.Size(108, 32);
+            this.p1_irms_box.Size = new System.Drawing.Size(108, 27);
             this.p1_irms_box.TabIndex = 32;
             // 
             // button11
@@ -795,7 +795,7 @@
             this.label46.Location = new System.Drawing.Point(46, 193);
             this.label46.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label46.Name = "label46";
-            this.label46.Size = new System.Drawing.Size(73, 24);
+            this.label46.Size = new System.Drawing.Size(60, 19);
             this.label46.TabIndex = 51;
             this.label46.Text = "P1 Pavg";
             // 
@@ -806,7 +806,7 @@
             this.p1_pavg_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p1_pavg_box.Name = "p1_pavg_box";
             this.p1_pavg_box.ReadOnly = true;
-            this.p1_pavg_box.Size = new System.Drawing.Size(108, 32);
+            this.p1_pavg_box.Size = new System.Drawing.Size(108, 27);
             this.p1_pavg_box.TabIndex = 50;
             // 
             // button5
@@ -828,7 +828,7 @@
             this.label24.Location = new System.Drawing.Point(46, 233);
             this.label24.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label24.Name = "label24";
-            this.label24.Size = new System.Drawing.Size(77, 24);
+            this.label24.Size = new System.Drawing.Size(62, 19);
             this.label24.TabIndex = 54;
             this.label24.Text = "P2 Vrms";
             // 
@@ -839,7 +839,7 @@
             this.p2_vrms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p2_vrms_box.Name = "p2_vrms_box";
             this.p2_vrms_box.ReadOnly = true;
-            this.p2_vrms_box.Size = new System.Drawing.Size(108, 32);
+            this.p2_vrms_box.Size = new System.Drawing.Size(108, 27);
             this.p2_vrms_box.TabIndex = 53;
             // 
             // button6
@@ -861,7 +861,7 @@
             this.label23.Location = new System.Drawing.Point(46, 276);
             this.label23.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label23.Name = "label23";
-            this.label23.Size = new System.Drawing.Size(71, 24);
+            this.label23.Size = new System.Drawing.Size(57, 19);
             this.label23.TabIndex = 57;
             this.label23.Text = "P2 Irms";
             // 
@@ -872,7 +872,7 @@
             this.p2_irms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p2_irms_box.Name = "p2_irms_box";
             this.p2_irms_box.ReadOnly = true;
-            this.p2_irms_box.Size = new System.Drawing.Size(108, 32);
+            this.p2_irms_box.Size = new System.Drawing.Size(108, 27);
             this.p2_irms_box.TabIndex = 56;
             // 
             // button4
@@ -894,7 +894,7 @@
             this.label16.Location = new System.Drawing.Point(46, 316);
             this.label16.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label16.Name = "label16";
-            this.label16.Size = new System.Drawing.Size(73, 24);
+            this.label16.Size = new System.Drawing.Size(60, 19);
             this.label16.TabIndex = 60;
             this.label16.Text = "P2 Pavg";
             // 
@@ -905,7 +905,7 @@
             this.p2_pavg_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.p2_pavg_box.Name = "p2_pavg_box";
             this.p2_pavg_box.ReadOnly = true;
-            this.p2_pavg_box.Size = new System.Drawing.Size(108, 32);
+            this.p2_pavg_box.Size = new System.Drawing.Size(108, 27);
             this.p2_pavg_box.TabIndex = 59;
             // 
             // button1
@@ -927,7 +927,7 @@
             this.label32.Location = new System.Drawing.Point(319, 31);
             this.label32.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label32.Name = "label32";
-            this.label32.Size = new System.Drawing.Size(62, 24);
+            this.label32.Size = new System.Drawing.Size(49, 19);
             this.label32.TabIndex = 64;
             this.label32.Text = "Status";
             // 
@@ -938,7 +938,7 @@
             this.status_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.status_box.Name = "status_box";
             this.status_box.ReadOnly = true;
-            this.status_box.Size = new System.Drawing.Size(108, 32);
+            this.status_box.Size = new System.Drawing.Size(108, 27);
             this.status_box.TabIndex = 63;
             // 
             // button19
@@ -957,10 +957,10 @@
             // 
             this.page_cali.Controls.Add(this.groupBox4);
             this.page_cali.Controls.Add(this.groupBox3);
-            this.page_cali.Location = new System.Drawing.Point(4, 31);
+            this.page_cali.Location = new System.Drawing.Point(4, 27);
             this.page_cali.Name = "page_cali";
             this.page_cali.Padding = new System.Windows.Forms.Padding(3);
-            this.page_cali.Size = new System.Drawing.Size(613, 459);
+            this.page_cali.Size = new System.Drawing.Size(613, 463);
             this.page_cali.TabIndex = 0;
             this.page_cali.Text = "Calibration";
             this.page_cali.UseVisualStyleBackColor = true;
@@ -1000,7 +1000,7 @@
             this.label27.Location = new System.Drawing.Point(31, 183);
             this.label27.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label27.Name = "label27";
-            this.label27.Size = new System.Drawing.Size(209, 24);
+            this.label27.Size = new System.Drawing.Size(167, 19);
             this.label27.TabIndex = 64;
             this.label27.Text = "AC High-Line : 80% Load";
             // 
@@ -1010,7 +1010,7 @@
             this.cali_p4_box.Location = new System.Drawing.Point(77, 287);
             this.cali_p4_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_p4_box.Name = "cali_p4_box";
-            this.cali_p4_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_p4_box.Size = new System.Drawing.Size(80, 27);
             this.cali_p4_box.TabIndex = 65;
             // 
             // label28
@@ -1020,7 +1020,7 @@
             this.label28.Location = new System.Drawing.Point(33, 290);
             this.label28.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label28.Name = "label28";
-            this.label28.Size = new System.Drawing.Size(48, 24);
+            this.label28.Size = new System.Drawing.Size(40, 19);
             this.label28.TabIndex = 66;
             this.label28.Text = "Pavg";
             // 
@@ -1031,7 +1031,7 @@
             this.label38.Location = new System.Drawing.Point(33, 214);
             this.label38.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label38.Name = "label38";
-            this.label38.Size = new System.Drawing.Size(52, 24);
+            this.label38.Size = new System.Drawing.Size(42, 19);
             this.label38.TabIndex = 62;
             this.label38.Text = "Vrms";
             // 
@@ -1053,7 +1053,7 @@
             this.cali_v4_box.Location = new System.Drawing.Point(77, 211);
             this.cali_v4_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_v4_box.Name = "cali_v4_box";
-            this.cali_v4_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_v4_box.Size = new System.Drawing.Size(80, 27);
             this.cali_v4_box.TabIndex = 60;
             // 
             // cali_i4_box
@@ -1062,7 +1062,7 @@
             this.cali_i4_box.Location = new System.Drawing.Point(77, 249);
             this.cali_i4_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_i4_box.Name = "cali_i4_box";
-            this.cali_i4_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_i4_box.Size = new System.Drawing.Size(80, 27);
             this.cali_i4_box.TabIndex = 61;
             // 
             // button16
@@ -1083,7 +1083,7 @@
             this.label40.Location = new System.Drawing.Point(33, 252);
             this.label40.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label40.Name = "label40";
-            this.label40.Size = new System.Drawing.Size(46, 24);
+            this.label40.Size = new System.Drawing.Size(37, 19);
             this.label40.TabIndex = 63;
             this.label40.Text = "Irms";
             // 
@@ -1094,7 +1094,7 @@
             this.label37.Location = new System.Drawing.Point(31, 34);
             this.label37.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label37.Name = "label37";
-            this.label37.Size = new System.Drawing.Size(209, 24);
+            this.label37.Size = new System.Drawing.Size(167, 19);
             this.label37.TabIndex = 36;
             this.label37.Text = "AC High-Line : 10% Load";
             // 
@@ -1104,7 +1104,7 @@
             this.cali_p3_box.Location = new System.Drawing.Point(77, 138);
             this.cali_p3_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_p3_box.Name = "cali_p3_box";
-            this.cali_p3_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_p3_box.Size = new System.Drawing.Size(80, 27);
             this.cali_p3_box.TabIndex = 40;
             // 
             // label31
@@ -1114,7 +1114,7 @@
             this.label31.Location = new System.Drawing.Point(33, 141);
             this.label31.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label31.Name = "label31";
-            this.label31.Size = new System.Drawing.Size(48, 24);
+            this.label31.Size = new System.Drawing.Size(40, 19);
             this.label31.TabIndex = 41;
             this.label31.Text = "Pavg";
             // 
@@ -1125,7 +1125,7 @@
             this.label13.Location = new System.Drawing.Point(33, 65);
             this.label13.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label13.Name = "label13";
-            this.label13.Size = new System.Drawing.Size(52, 24);
+            this.label13.Size = new System.Drawing.Size(42, 19);
             this.label13.TabIndex = 8;
             this.label13.Text = "Vrms";
             // 
@@ -1147,7 +1147,7 @@
             this.cali_v3_box.Location = new System.Drawing.Point(77, 62);
             this.cali_v3_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_v3_box.Name = "cali_v3_box";
-            this.cali_v3_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_v3_box.Size = new System.Drawing.Size(80, 27);
             this.cali_v3_box.TabIndex = 4;
             // 
             // cali_i3_box
@@ -1156,7 +1156,7 @@
             this.cali_i3_box.Location = new System.Drawing.Point(77, 100);
             this.cali_i3_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_i3_box.Name = "cali_i3_box";
-            this.cali_i3_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_i3_box.Size = new System.Drawing.Size(80, 27);
             this.cali_i3_box.TabIndex = 5;
             // 
             // button17
@@ -1177,7 +1177,7 @@
             this.label14.Location = new System.Drawing.Point(33, 103);
             this.label14.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label14.Name = "label14";
-            this.label14.Size = new System.Drawing.Size(46, 24);
+            this.label14.Size = new System.Drawing.Size(37, 19);
             this.label14.TabIndex = 9;
             this.label14.Text = "Irms";
             // 
@@ -1216,7 +1216,7 @@
             this.label12.Location = new System.Drawing.Point(27, 183);
             this.label12.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label12.Name = "label12";
-            this.label12.Size = new System.Drawing.Size(210, 24);
+            this.label12.Size = new System.Drawing.Size(167, 19);
             this.label12.TabIndex = 62;
             this.label12.Text = "AC Low-Line :  80% Load";
             // 
@@ -1226,7 +1226,7 @@
             this.cali_p2_box.Location = new System.Drawing.Point(73, 287);
             this.cali_p2_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_p2_box.Name = "cali_p2_box";
-            this.cali_p2_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_p2_box.Size = new System.Drawing.Size(80, 27);
             this.cali_p2_box.TabIndex = 63;
             // 
             // label15
@@ -1236,7 +1236,7 @@
             this.label15.Location = new System.Drawing.Point(29, 290);
             this.label15.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label15.Name = "label15";
-            this.label15.Size = new System.Drawing.Size(48, 24);
+            this.label15.Size = new System.Drawing.Size(40, 19);
             this.label15.TabIndex = 64;
             this.label15.Text = "Pavg";
             // 
@@ -1247,7 +1247,7 @@
             this.label21.Location = new System.Drawing.Point(29, 214);
             this.label21.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label21.Name = "label21";
-            this.label21.Size = new System.Drawing.Size(52, 24);
+            this.label21.Size = new System.Drawing.Size(42, 19);
             this.label21.TabIndex = 60;
             this.label21.Text = "Vrms";
             // 
@@ -1269,7 +1269,7 @@
             this.cali_v2_box.Location = new System.Drawing.Point(73, 211);
             this.cali_v2_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_v2_box.Name = "cali_v2_box";
-            this.cali_v2_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_v2_box.Size = new System.Drawing.Size(80, 27);
             this.cali_v2_box.TabIndex = 58;
             // 
             // cali_i2_box
@@ -1278,7 +1278,7 @@
             this.cali_i2_box.Location = new System.Drawing.Point(73, 249);
             this.cali_i2_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_i2_box.Name = "cali_i2_box";
-            this.cali_i2_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_i2_box.Size = new System.Drawing.Size(80, 27);
             this.cali_i2_box.TabIndex = 59;
             // 
             // button8
@@ -1299,7 +1299,7 @@
             this.label22.Location = new System.Drawing.Point(29, 252);
             this.label22.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label22.Name = "label22";
-            this.label22.Size = new System.Drawing.Size(46, 24);
+            this.label22.Size = new System.Drawing.Size(37, 19);
             this.label22.TabIndex = 61;
             this.label22.Text = "Irms";
             // 
@@ -1310,7 +1310,7 @@
             this.label39.Location = new System.Drawing.Point(27, 34);
             this.label39.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label39.Name = "label39";
-            this.label39.Size = new System.Drawing.Size(205, 24);
+            this.label39.Size = new System.Drawing.Size(163, 19);
             this.label39.TabIndex = 38;
             this.label39.Text = "AC Low-Line : 10% Load";
             // 
@@ -1320,7 +1320,7 @@
             this.cali_p1_box.Location = new System.Drawing.Point(73, 138);
             this.cali_p1_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_p1_box.Name = "cali_p1_box";
-            this.cali_p1_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_p1_box.Size = new System.Drawing.Size(80, 27);
             this.cali_p1_box.TabIndex = 44;
             // 
             // label41
@@ -1330,7 +1330,7 @@
             this.label41.Location = new System.Drawing.Point(29, 141);
             this.label41.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label41.Name = "label41";
-            this.label41.Size = new System.Drawing.Size(48, 24);
+            this.label41.Size = new System.Drawing.Size(40, 19);
             this.label41.TabIndex = 45;
             this.label41.Text = "Pavg";
             // 
@@ -1341,7 +1341,7 @@
             this.label30.Location = new System.Drawing.Point(29, 65);
             this.label30.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label30.Name = "label30";
-            this.label30.Size = new System.Drawing.Size(52, 24);
+            this.label30.Size = new System.Drawing.Size(42, 19);
             this.label30.TabIndex = 17;
             this.label30.Text = "Vrms";
             // 
@@ -1363,7 +1363,7 @@
             this.cali_v1_box.Location = new System.Drawing.Point(73, 62);
             this.cali_v1_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_v1_box.Name = "cali_v1_box";
-            this.cali_v1_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_v1_box.Size = new System.Drawing.Size(80, 27);
             this.cali_v1_box.TabIndex = 12;
             // 
             // cali_i1_box
@@ -1372,7 +1372,7 @@
             this.cali_i1_box.Location = new System.Drawing.Point(73, 100);
             this.cali_i1_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.cali_i1_box.Name = "cali_i1_box";
-            this.cali_i1_box.Size = new System.Drawing.Size(80, 32);
+            this.cali_i1_box.Size = new System.Drawing.Size(80, 27);
             this.cali_i1_box.TabIndex = 14;
             // 
             // button15
@@ -1393,7 +1393,7 @@
             this.label29.Location = new System.Drawing.Point(29, 103);
             this.label29.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label29.Name = "label29";
-            this.label29.Size = new System.Drawing.Size(46, 24);
+            this.label29.Size = new System.Drawing.Size(37, 19);
             this.label29.TabIndex = 19;
             this.label29.Text = "Irms";
             // 
@@ -1401,10 +1401,10 @@
             // 
             this.tabPage1.Controls.Add(this.accuracy_grid);
             this.tabPage1.Controls.Add(this.accuracy_toolbar);
-            this.tabPage1.Location = new System.Drawing.Point(4, 31);
+            this.tabPage1.Location = new System.Drawing.Point(4, 27);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(613, 459);
+            this.tabPage1.Size = new System.Drawing.Size(613, 463);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "Accuracy (%)";
             this.tabPage1.UseVisualStyleBackColor = true;
@@ -1424,14 +1424,14 @@
             this.accuracy_grid.RowHeadersVisible = false;
             this.accuracy_grid.RowHeadersWidth = 51;
             this.accuracy_grid.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.CellSelect;
-            this.accuracy_grid.Size = new System.Drawing.Size(607, 419);
+            this.accuracy_grid.Size = new System.Drawing.Size(607, 423);
             this.accuracy_grid.TabIndex = 0;
             // 
             // accuracy_toolbar
             // 
             this.accuracy_toolbar.Controls.Add(this.export_accuracy_btn);
             this.accuracy_toolbar.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.accuracy_toolbar.Location = new System.Drawing.Point(3, 422);
+            this.accuracy_toolbar.Location = new System.Drawing.Point(3, 426);
             this.accuracy_toolbar.Name = "accuracy_toolbar";
             this.accuracy_toolbar.Size = new System.Drawing.Size(607, 34);
             this.accuracy_toolbar.TabIndex = 1;
@@ -1451,10 +1451,10 @@
             // 
             this.tabPage3.Controls.Add(this.groupBox1);
             this.tabPage3.Controls.Add(this.visa_gb);
-            this.tabPage3.Location = new System.Drawing.Point(4, 31);
+            this.tabPage3.Location = new System.Drawing.Point(4, 27);
             this.tabPage3.Name = "tabPage3";
             this.tabPage3.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage3.Size = new System.Drawing.Size(613, 459);
+            this.tabPage3.Size = new System.Drawing.Size(613, 463);
             this.tabPage3.TabIndex = 2;
             this.tabPage3.Text = "Connection";
             this.tabPage3.UseVisualStyleBackColor = true;
@@ -1481,7 +1481,7 @@
             this.dc_load_lbl.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.dc_load_lbl.Location = new System.Drawing.Point(45, 32);
             this.dc_load_lbl.Name = "dc_load_lbl";
-            this.dc_load_lbl.Size = new System.Drawing.Size(83, 24);
+            this.dc_load_lbl.Size = new System.Drawing.Size(67, 19);
             this.dc_load_lbl.TabIndex = 0;
             this.dc_load_lbl.Text = "DC Load:";
             // 
@@ -1492,7 +1492,7 @@
             this.dc_load_cbb.FormattingEnabled = true;
             this.dc_load_cbb.Location = new System.Drawing.Point(120, 29);
             this.dc_load_cbb.Name = "dc_load_cbb";
-            this.dc_load_cbb.Size = new System.Drawing.Size(450, 32);
+            this.dc_load_cbb.Size = new System.Drawing.Size(450, 27);
             this.dc_load_cbb.TabIndex = 1;
             // 
             // power_meter_lbl
@@ -1501,7 +1501,7 @@
             this.power_meter_lbl.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.power_meter_lbl.Location = new System.Drawing.Point(16, 68);
             this.power_meter_lbl.Name = "power_meter_lbl";
-            this.power_meter_lbl.Size = new System.Drawing.Size(123, 24);
+            this.power_meter_lbl.Size = new System.Drawing.Size(96, 19);
             this.power_meter_lbl.TabIndex = 2;
             this.power_meter_lbl.Text = "Power Meter:";
             // 
@@ -1512,7 +1512,7 @@
             this.power_meter_cbb.FormattingEnabled = true;
             this.power_meter_cbb.Location = new System.Drawing.Point(120, 65);
             this.power_meter_cbb.Name = "power_meter_cbb";
-            this.power_meter_cbb.Size = new System.Drawing.Size(450, 32);
+            this.power_meter_cbb.Size = new System.Drawing.Size(450, 27);
             this.power_meter_cbb.TabIndex = 3;
             // 
             // scan_visa_btn
@@ -1564,7 +1564,7 @@
             this.label6.Location = new System.Drawing.Point(18, 27);
             this.label6.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(57, 24);
+            this.label6.Size = new System.Drawing.Size(45, 19);
             this.label6.TabIndex = 12;
             this.label6.Text = "Freq :";
             // 
@@ -1575,7 +1575,7 @@
             this.freq_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.freq_box.Name = "freq_box";
             this.freq_box.ReadOnly = true;
-            this.freq_box.Size = new System.Drawing.Size(108, 32);
+            this.freq_box.Size = new System.Drawing.Size(108, 27);
             this.freq_box.TabIndex = 3;
             // 
             // label7
@@ -1585,7 +1585,7 @@
             this.label7.Location = new System.Drawing.Point(17, 60);
             this.label7.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(62, 24);
+            this.label7.Size = new System.Drawing.Size(50, 19);
             this.label7.TabIndex = 11;
             this.label7.Text = "Vrms :";
             // 
@@ -1596,7 +1596,7 @@
             this.vrms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.vrms_box.Name = "vrms_box";
             this.vrms_box.ReadOnly = true;
-            this.vrms_box.Size = new System.Drawing.Size(108, 32);
+            this.vrms_box.Size = new System.Drawing.Size(108, 27);
             this.vrms_box.TabIndex = 4;
             // 
             // irms_box
@@ -1606,7 +1606,7 @@
             this.irms_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.irms_box.Name = "irms_box";
             this.irms_box.ReadOnly = true;
-            this.irms_box.Size = new System.Drawing.Size(108, 32);
+            this.irms_box.Size = new System.Drawing.Size(108, 27);
             this.irms_box.TabIndex = 5;
             // 
             // label9
@@ -1616,7 +1616,7 @@
             this.label9.Location = new System.Drawing.Point(18, 126);
             this.label9.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(72, 24);
+            this.label9.Size = new System.Drawing.Size(57, 19);
             this.label9.TabIndex = 4;
             this.label9.Text = "Power :";
             // 
@@ -1627,7 +1627,7 @@
             this.watt_box.Margin = new System.Windows.Forms.Padding(2, 3, 2, 3);
             this.watt_box.Name = "watt_box";
             this.watt_box.ReadOnly = true;
-            this.watt_box.Size = new System.Drawing.Size(108, 32);
+            this.watt_box.Size = new System.Drawing.Size(108, 27);
             this.watt_box.TabIndex = 6;
             // 
             // label8
@@ -1637,7 +1637,7 @@
             this.label8.Location = new System.Drawing.Point(18, 93);
             this.label8.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(56, 24);
+            this.label8.Size = new System.Drawing.Size(45, 19);
             this.label8.TabIndex = 3;
             this.label8.Text = "Irms :";
             // 
@@ -1647,9 +1647,9 @@
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.StatusLabel1,
             this.StatusLabel2});
-            this.statusStrip1.Location = new System.Drawing.Point(0, 527);
+            this.statusStrip1.Location = new System.Drawing.Point(0, 533);
             this.statusStrip1.Name = "statusStrip1";
-            this.statusStrip1.Size = new System.Drawing.Size(870, 30);
+            this.statusStrip1.Size = new System.Drawing.Size(870, 24);
             this.statusStrip1.TabIndex = 6;
             this.statusStrip1.Text = "statusStrip1";
             // 
@@ -1657,14 +1657,14 @@
             // 
             this.StatusLabel1.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.StatusLabel1.Name = "StatusLabel1";
-            this.StatusLabel1.Size = new System.Drawing.Size(77, 24);
+            this.StatusLabel1.Size = new System.Drawing.Size(61, 19);
             this.StatusLabel1.Text = "Status : ";
             // 
             // StatusLabel2
             // 
             this.StatusLabel2.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.StatusLabel2.Name = "StatusLabel2";
-            this.StatusLabel2.Size = new System.Drawing.Size(61, 24);
+            this.StatusLabel2.Size = new System.Drawing.Size(49, 19);
             this.StatusLabel2.Text = "Ready";
             this.StatusLabel2.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
@@ -1708,7 +1708,7 @@
             this.label11.Location = new System.Drawing.Point(3, 249);
             this.label11.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label11.Name = "label11";
-            this.label11.Size = new System.Drawing.Size(52, 24);
+            this.label11.Size = new System.Drawing.Size(42, 19);
             this.label11.TabIndex = 20;
             this.label11.Text = "Rep :";
             // 
@@ -1727,7 +1727,7 @@
             this.label10.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label10.Location = new System.Drawing.Point(12, 95);
             this.label10.Name = "label10";
-            this.label10.Size = new System.Drawing.Size(69, 24);
+            this.label10.Size = new System.Drawing.Size(55, 19);
             this.label10.TabIndex = 23;
             this.label10.Text = "Repeat";
             // 
@@ -1738,7 +1738,7 @@
             this.label34.Location = new System.Drawing.Point(69, 168);
             this.label34.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label34.Name = "label34";
-            this.label34.Size = new System.Drawing.Size(76, 24);
+            this.label34.Size = new System.Drawing.Size(59, 19);
             this.label34.TabIndex = 22;
             this.label34.Text = "Chroma";
             // 
@@ -1749,7 +1749,7 @@
             this.label33.Location = new System.Drawing.Point(163, 168);
             this.label33.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label33.Name = "label33";
-            this.label33.Size = new System.Drawing.Size(52, 24);
+            this.label33.Size = new System.Drawing.Size(40, 19);
             this.label33.TabIndex = 21;
             this.label33.Text = "Error";
             // 
@@ -1770,7 +1770,7 @@
             this.label26.Location = new System.Drawing.Point(3, 268);
             this.label26.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label26.Name = "label26";
-            this.label26.Size = new System.Drawing.Size(60, 24);
+            this.label26.Size = new System.Drawing.Size(48, 19);
             this.label26.TabIndex = 19;
             this.label26.Text = "Load :";
             // 
@@ -1780,7 +1780,7 @@
             this.label25.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label25.Location = new System.Drawing.Point(12, 62);
             this.label25.Name = "label25";
-            this.label25.Size = new System.Drawing.Size(93, 24);
+            this.label25.Size = new System.Drawing.Size(76, 19);
             this.label25.TabIndex = 18;
             this.label25.Text = "Delay Sec.";
             // 
@@ -1799,7 +1799,7 @@
             this.label5.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label5.Location = new System.Drawing.Point(12, 29);
             this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(123, 24);
+            this.label5.Size = new System.Drawing.Size(96, 19);
             this.label5.TabIndex = 16;
             this.label5.Text = "100% Current";
             // 
@@ -1819,7 +1819,7 @@
             this.label4.Location = new System.Drawing.Point(3, 230);
             this.label4.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(72, 24);
+            this.label4.Size = new System.Drawing.Size(57, 19);
             this.label4.TabIndex = 14;
             this.label4.Text = "Power :";
             // 
@@ -1830,7 +1830,7 @@
             this.label3.Location = new System.Drawing.Point(3, 211);
             this.label3.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(56, 24);
+            this.label3.Size = new System.Drawing.Size(45, 19);
             this.label3.TabIndex = 13;
             this.label3.Text = "Irms :";
             // 
@@ -1841,7 +1841,7 @@
             this.label2.Location = new System.Drawing.Point(3, 192);
             this.label2.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(62, 24);
+            this.label2.Size = new System.Drawing.Size(50, 19);
             this.label2.TabIndex = 12;
             this.label2.Text = "Vrms :";
             // 
@@ -1857,12 +1857,12 @@
             // 
             // button14
             // 
-            this.button14.Enabled = false;
             this.button14.Font = new System.Drawing.Font("Calibri", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.button14.Location = new System.Drawing.Point(117, 125);
             this.button14.Name = "button14";
             this.button14.Size = new System.Drawing.Size(100, 34);
             this.button14.TabIndex = 1;
+            this.button14.Text = "To 100W";
             this.button14.UseVisualStyleBackColor = true;
             this.button14.Click += new System.EventHandler(this.button14_Click);
             // 
@@ -1885,7 +1885,7 @@
             // 
             // Form1
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(5F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(870, 557);
             this.Controls.Add(this.tabControl1);
